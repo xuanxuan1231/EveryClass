@@ -45,6 +45,7 @@ struct ClassWidgetLiveActivity: Widget {
                 .contentMargins(.all, 12)
             } compactLeading: {
                 Image(systemName: "book.closed")
+                    .padding(.leading, 6)
                     .frame(width: 52, alignment: .leading)
             } compactTrailing: {
                 Text(
@@ -53,6 +54,7 @@ struct ClassWidgetLiveActivity: Widget {
                 )
                 .monospacedDigit()
                 .multilineTextAlignment(.trailing)
+                .padding(.trailing, 6)
                 .frame(width: 52, alignment: .trailing)
             } minimal: {
                 Image(systemName: "book.closed")

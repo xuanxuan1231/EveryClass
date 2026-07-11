@@ -14,6 +14,7 @@
 - Do not change the Flutter method channel, ActivityKit attributes, Android notification, or Live Activity lifecycle.
 - Keep the Widget extension deployment target at iOS 16.2.
 - Add no dependencies.
+- Keep the compact capsule width fixed while moving each compact content item 6 points toward the center.
 
 ---
 
@@ -69,6 +70,7 @@ DynamicIslandExpandedRegion(.bottom) {
 .contentMargins(.all, 12)
 
 Image(systemName: "book.closed")
+    .padding(.leading, 6)
     .frame(width: 52, alignment: .leading)
 
 Text(
@@ -77,6 +79,7 @@ Text(
 )
 .monospacedDigit()
 .multilineTextAlignment(.trailing)
+.padding(.trailing, 6)
 .frame(width: 52, alignment: .trailing)
 
 // End the DynamicIsland after the minimal region without keylineTint.
