@@ -18,10 +18,10 @@ data, Android notification UI, or Live Activity lifecycle.
 Remove the explicit Dynamic Island `keylineTint`, which draws a visible outline
 over the expanded presentation and competes with the course information.
 
-In compact mode, remove the fixed 52-point trailing timer width. The native
-compact region will size the monospaced timer to its actual content, keeping it
-visually aligned with the right system inset rather than leaving an artificial
-gap beside the capsule edge.
+In compact mode, give both leading and trailing content explicit 52-point
+regions. Align the icon to the leading edge and align the monospaced timer text
+and its frame to the trailing edge. This keeps the compact capsule at its native
+size and gives both visible elements matching system insets.
 
 In expanded mode, apply one consistent content margin to the leading, trailing,
 and bottom regions. Leading course text remains one line; the countdown remains

@@ -21,6 +21,7 @@ struct ClassWidgetLiveActivity: Widget {
                             .font(.headline).lineLimit(1)
                     }
                 }
+                .contentMargins(.all, 12)
                 DynamicIslandExpandedRegion(.trailing) {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(context.state.statusLabel)
@@ -34,25 +35,28 @@ struct ClassWidgetLiveActivity: Widget {
                         .frame(maxWidth: 64)
                     }
                 }
+                .contentMargins(.all, 12)
                 DynamicIslandExpandedRegion(.bottom) {
                     if !context.state.room.isEmpty {
                         Label(context.state.room, systemImage: "mappin.and.ellipse")
                             .font(.subheadline)
                     }
                 }
+                .contentMargins(.all, 12)
             } compactLeading: {
                 Image(systemName: "book.closed")
+                    .frame(width: 52, alignment: .leading)
             } compactTrailing: {
                 Text(
                     timerInterval: context.state.countdownStart...context.state.countdownEnd,
                     countsDown: true
                 )
                 .monospacedDigit()
-                .frame(maxWidth: 52)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 52, alignment: .trailing)
             } minimal: {
                 Image(systemName: "book.closed")
             }
-            .keylineTint(.indigo)
         }
     }
 }
