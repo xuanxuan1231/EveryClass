@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS"/>
 
     <application
-        android:label="everyclass"
+        android:label="EveryClass"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

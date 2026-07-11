@@ -1,6 +1,6 @@
 {
-    "name": "everyclass",
-    "short_name": "everyclass",
+    "name": "EveryClass",
+    "short_name": "EveryClass",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

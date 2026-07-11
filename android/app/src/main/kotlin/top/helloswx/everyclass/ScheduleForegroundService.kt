@@ -1,4 +1,4 @@
-package com.example.everyclass
+package top.helloswx.everyclass
 
 import android.app.Notification
 import android.app.NotificationChannel

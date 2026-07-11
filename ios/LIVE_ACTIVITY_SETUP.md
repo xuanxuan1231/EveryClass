@@ -41,7 +41,7 @@ Widget Extension target（ClassWidget）：
 
 6. **部署目标与签名**
    - ClassWidget target 的 *Minimum Deployments* 设为 **iOS 16.2**。
-   - ClassWidget 的 *Signing & Capabilities*：选择你的 Team，Bundle ID 用 `com.example.everyclass.ClassWidget`（须以 App 的 `com.example.everyclass` 为前缀）。
+   - ClassWidget 的 *Signing & Capabilities*：选择你的 Team，Bundle ID 用 `top.helloswx.everyclass.ClassWidget`（须以 App 的 `top.helloswx.everyclass` 为前缀）。
 
 7. **（可选）App Group**
    - 当前实现通过 MethodChannel 实时下发数据，**不需要** App Group。
