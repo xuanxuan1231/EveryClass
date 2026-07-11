@@ -18,55 +18,78 @@ struct LessonInput {
 ///
 /// 与 Android 前台服务对应；iOS 侧在 App 运行时更新，后台推送（APNs）留待后续。
 @available(iOS 16.2, *)
+@MainActor
 final class LiveActivityManager {
     static let shared = LiveActivityManager()
     private init() {}
 
-    private var activity: Activity<ClassActivityAttributes>?
     private var lessons: [LessonInput] = []
     private var timer: Timer?
 
-    /// 应用今日课表并刷新活动。
-    func apply(lessons: [LessonInput]) {
-        self.lessons = lessons.sorted { $0.start < $1.start }
-        refresh()
+    var isSupported: Bool {
+        ActivityAuthorizationInfo().areActivitiesEnabled
     }
 
-    /// 结束并移除活动。
-    func stop() {
+    func apply(lessons: [LessonInput]) async -> Bool {
+        self.lessons = lessons.sorted { $0.start < $1.start }
+        return await refresh()
+    }
+
+    func update(state: ClassActivityAttributes.ContentState) async -> Bool {
+        lessons = []
         timer?.invalidate()
         timer = nil
-        let ending = activity
-        activity = nil
-        Task { await ending?.end(nil, dismissalPolicy: .immediate) }
+        return await publish(state: state)
     }
 
-    private func refresh() {
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+    func stop() async -> Bool {
+        lessons = []
+        timer?.invalidate()
+        timer = nil
+        for activity in Activity<ClassActivityAttributes>.activities {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+        return true
+    }
+
+    private func refresh() async -> Bool {
+        guard isSupported else { return false }
         let now = Date()
         let current = lessons.first { now >= $0.start && now < $0.end }
         let next = lessons.first { $0.start > now }
 
         guard let state = makeState(current: current, next: next, now: now) else {
-            stop() // 今日无课/已结束
-            return
+            return await stop()
         }
 
-        let content = ActivityContent(state: state, staleDate: state.countdownEnd)
-        if let activity = activity {
-            Task { await activity.update(content) }
-        } else {
-            do {
-                activity = try Activity.request(
-                    attributes: ClassActivityAttributes(),
-                    content: content,
-                    pushType: nil
-                )
-            } catch {
-                NSLog("[EveryClass] Live Activity 启动失败: \(error.localizedDescription)")
-            }
-        }
+        let success = await publish(state: state)
+        guard success else { return false }
         scheduleNextBoundary(now: now)
+        return true
+    }
+
+    private func publish(state: ClassActivityAttributes.ContentState) async -> Bool {
+        guard isSupported else { return false }
+        let content = ActivityContent(state: state, staleDate: state.countdownEnd)
+        let activities = Activity<ClassActivityAttributes>.activities
+        if let existing = activities.first {
+            await existing.update(content)
+            for duplicate in activities.dropFirst() {
+                await duplicate.end(nil, dismissalPolicy: .immediate)
+            }
+            return true
+        }
+        do {
+            _ = try Activity.request(
+                attributes: ClassActivityAttributes(),
+                content: content,
+                pushType: nil
+            )
+            return true
+        } catch {
+            NSLog("[EveryClass] Live Activity 启动失败: \(error.localizedDescription)")
+            return false
+        }
     }
 
     private func makeState(
@@ -101,7 +124,9 @@ final class LiveActivityManager {
         guard let fire = next else { return }
         let interval = max(1, fire.timeIntervalSince(now) + 0.5)
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
-            self?.refresh()
+            Task { @MainActor in
+                _ = await self?.refresh()
+            }
         }
     }
 }

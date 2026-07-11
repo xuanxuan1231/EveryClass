@@ -3,8 +3,7 @@ import Foundation
 
 /// Live Activity 的数据模型，App 与 Widget Extension 两个 target 共享。
 ///
-/// 注意：本文件需同时加入 Runner 与 ClassWidget 两个 target 的成员（见
-/// LIVE_ACTIVITY_SETUP.md）。
+/// 本文件同时编译进 Runner 与 ClassWidget 两个 target。
 @available(iOS 16.1, *)
 struct ClassActivityAttributes: ActivityAttributes {
     public typealias ContentState = State

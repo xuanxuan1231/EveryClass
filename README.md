@@ -17,7 +17,7 @@ lib/
   platform/    实时通知 & 文件导入的 MethodChannel 封装
   ui/          今日课表、设置页
 android/app/src/main/kotlin/...  ScheduleForegroundService（实时通知）
-ios/Runner + ios/ClassWidget      Live Activity（见 ios/LIVE_ACTIVITY_SETUP.md）
+ios/Runner + ios/ClassWidget      Live Activity（见 ios/README.md）
 ```
 
 数据模型说明：ClassIsland 无教室字段，走班教室存于 `Subject.defaultRoom` / `ClassInfo.room`，并镜像进 `AttachedObjects["everyclass.room"]` 以保持档案往返兼容。`TimeRule.WeekDay` 为 1–7（周一=1）。参考：仓库根的 `Default.json`（空课表样例）与 `profile_schema_detailed.txt`。
@@ -33,7 +33,7 @@ flutter build apk --debug
 ```
 
 - **Android**：`minSdk 26`，`compile/target 36`。首次运行会请求通知权限；到「设置」导入档案、按科目填教室、打开「实时通知」。
-- **iOS**：Live Activity 需在 macOS + Xcode 上挂接 Widget Extension，详见 [`ios/LIVE_ACTIVITY_SETUP.md`](ios/LIVE_ACTIVITY_SETUP.md)。
+- **iOS**：`ClassWidget` Extension 已接入 Xcode 工程；签名、演示运行与真机验收见 [`ios/README.md`](ios/README.md)。
 
 ## 使用
 
