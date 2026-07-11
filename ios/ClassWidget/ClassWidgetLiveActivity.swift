@@ -20,6 +20,8 @@ struct ClassWidgetLiveActivity: Widget {
                         Text(context.state.subject)
                             .font(.headline).lineLimit(1)
                     }
+                    .padding(.leading, 16)
+                    .padding(.top, 4)
                 }
                 .contentMargins(.all, 12)
                 DynamicIslandExpandedRegion(.trailing) {
@@ -34,6 +36,8 @@ struct ClassWidgetLiveActivity: Widget {
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: 64)
                     }
+                    .padding(.trailing, 16)
+                    .padding(.top, 4)
                 }
                 .contentMargins(.all, 12)
                 DynamicIslandExpandedRegion(.bottom) {

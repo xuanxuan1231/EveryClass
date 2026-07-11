@@ -15,7 +15,7 @@
 - Keep the Widget extension deployment target at iOS 16.2.
 - Add no dependencies.
 - Keep the compact capsule width fixed while moving each compact content item 6 points toward the center.
-- Move the expanded leading and trailing text stacks inward by 24 points without changing the bottom region.
+- Move the expanded leading and trailing text stacks inward by 16 points and down by 4 points without changing the bottom region.
 
 ---
 
@@ -111,28 +111,29 @@ git commit -m "fix(ios): refine dynamic island layout"
 
 ---
 
-### Task 2: Move Expanded Side Content Inward
+### Task 2: Position Expanded Side Content
 
 **Files:**
 - Modify: `ios/ClassWidget/ClassWidgetLiveActivity.swift:16-38`
 
 **Interfaces:**
 - Consumes: the existing expanded leading and trailing `VStack` views.
-- Produces: the same content with 24-point directional padding toward the center.
+- Produces: the same content with 16-point directional padding toward the center and a 4-point downward adjustment.
 
-- [ ] **Step 1: Capture the current simulator state**
+- [x] **Step 1: Capture the current simulator state**
 
 Run: `xcrun simctl io booted screenshot /tmp/everyclass-expanded-before.png`
 
 Expected: the expanded Live Activity screenshot shows both side labels touching the curved outer edges.
 
-- [ ] **Step 2: Add directional padding**
+- [x] **Step 2: Add directional padding**
 
-Add `.padding(.leading, 24)` to the leading `VStack` and
-`.padding(.trailing, 24)` to the trailing `VStack`. Keep the existing
-`.contentMargins(.all, 12)` modifiers and all compact-region code unchanged.
+Add `.padding(.leading, 16)` and `.padding(.top, 4)` to the leading `VStack`.
+Add `.padding(.trailing, 16)` and `.padding(.top, 4)` to the trailing `VStack`.
+Keep the existing `.contentMargins(.all, 12)` modifiers and all compact-region
+code unchanged.
 
-- [ ] **Step 3: Compile and verify**
+- [x] **Step 3: Compile and verify**
 
 Run: `xcodebuild -project ios/Runner.xcodeproj -scheme Runner -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`
 
