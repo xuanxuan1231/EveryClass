@@ -24,17 +24,19 @@ and its frame to the trailing edge. This keeps the compact capsule at its native
 size. Add a 6-point inset on each outer edge so the icon and timer move inward
 toward the camera cutout by the same amount while remaining visually balanced.
 
-In expanded mode, apply one consistent content margin to the leading, trailing,
-and bottom regions. Leading course text remains one line; the countdown remains
-right-aligned and monospaced. This keeps all content inside the Dynamic Island
-safe area without relying on a decorative border.
+In expanded mode, keep the consistent 12-point content margin on the leading,
+trailing, and bottom regions. Add 24 points of directional padding to the
+leading and trailing text stacks so the left content moves right and the right
+content moves left without changing the bottom region. Leading course text
+remains one line; the countdown remains right-aligned and monospaced.
 
 ## Acceptance Criteria
 
 - Compact mode has no visible custom outline and the leading icon and trailing
   countdown have visually balanced system insets, each shifted 6 points toward
   the center from the edge-aligned layout.
-- Expanded mode has no keyline crossing, obscuring, or competing with text.
+- Expanded mode has no keyline crossing, obscuring, or competing with text;
+  its left and right text stacks are each inset an additional 24 points.
 - Course name, room, status label, and countdown remain readable and do not
   overlap at the existing supported content sizes.
 - The Widget extension continues to compile for iOS 16.2 and later.
