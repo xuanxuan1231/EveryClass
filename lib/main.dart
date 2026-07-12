@@ -2,13 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'app_state.dart';
+import 'platform/live_notification.dart';
 import 'ui/settings_screen.dart';
 import 'ui/today_screen.dart';
+
+const notificationDemoEnabled = bool.fromEnvironment(
+  'EVERYCLASS_NOTIFICATION_DEMO',
+);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final appState = await AppState.create();
   runApp(EveryClassApp(appState: appState));
+  if (notificationDemoEnabled) {
+    await LiveNotification.runDemo();
+  }
 }
 
 class EveryClassApp extends StatelessWidget {
@@ -23,10 +31,7 @@ class EveryClassApp extends StatelessWidget {
       child: MaterialApp(
         title: 'EveryClass',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorSchemeSeed: Colors.indigo,
-          useMaterial3: true,
-        ),
+        theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
         darkTheme: ThemeData(
           colorSchemeSeed: Colors.indigo,
           brightness: Brightness.dark,
