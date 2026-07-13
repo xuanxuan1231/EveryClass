@@ -1,8 +1,9 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 应用设置：学期起始日（算轮换周）、实时倒计时与课程提醒选项。
+/// 应用设置：实时倒计时与课程提醒选项。
+///
+/// 学期第一周（原 `termStart`）已迁移到 `Calendar.firstWeekStart`，不再存于此处。
 class SettingsService {
-  static const String _kTermStart = 'term_start';
   static const String _kEnhancedCountdown = 'enhanced_countdown';
   static const String _kRemindBefore = 'remind_before';
   static const String _kRemindStart = 'remind_start';
@@ -16,22 +17,6 @@ class SettingsService {
 
   static Future<SettingsService> create() async {
     return SettingsService(await SharedPreferences.getInstance());
-  }
-
-  DateTime? get termStart {
-    final s = _prefs.getString(_kTermStart);
-    return s == null ? null : DateTime.tryParse(s);
-  }
-
-  Future<void> setTermStart(DateTime? day) async {
-    if (day == null) {
-      await _prefs.remove(_kTermStart);
-    } else {
-      await _prefs.setString(
-        _kTermStart,
-        DateTime(day.year, day.month, day.day).toIso8601String(),
-      );
-    }
   }
 
   /// 岛内计时：true=逐秒 M:SS（服务每秒重发，较耗电）；false=分钟数。默认关。

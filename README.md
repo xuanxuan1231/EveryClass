@@ -5,22 +5,24 @@
 - **iOS**：Live Activity（ActivityKit + WidgetKit，原生倒计时）
 - **Android**：常驻前台服务通知；Android 16 用 Live Updates（`ProgressStyle` + 提升为常驻），低版本回退普通常驻通知 + Chronometer 倒计时
 
-课表数据对齐 [ClassIsland](https://github.com/ClassIsland/ClassIsland) 的 schema，通过导入其档案 JSON 使用。
+课表数据采用受 [JSCalendar (RFC 8984)](https://www.rfc-editor.org/rfc/rfc8984) 启发的自有模型，并可**导入** [ClassIsland](https://github.com/ClassIsland/ClassIsland) 档案 JSON（导入即转换）。设计详见 [`docs/superpowers/specs/2026-07-13-jscalendar-data-model-design.md`](docs/superpowers/specs/2026-07-13-jscalendar-data-model-design.md)。
 
 ## 架构
 
 ```
 lib/
-  models/      数据模型（ClassIsland 对齐 + 走班教室扩展）
-  data/        仓库（本地 JSON 持久化）+ ClassIsland 导入器
-  services/    调度引擎（今日/当前/下一节、单双周轮换）+ 设置
+  models/      数据模型（Database → Calendar → BellSchedule / CourseEvent → Meeting；
+               WeekRule / OccurrenceOverride / Alert；ClassIsland 中间模型仅供导入）
+  data/        仓库（本地 JSON 持久化 database.json + 旧 profile.json 迁移）
+               + ClassIsland 导入器 & 转换器
+  services/    调度引擎（今日/当前/下一节、周次/单双周轮换、冲突、空闲）+ 设置
   platform/    实时通知 & 文件导入的 MethodChannel 封装
   ui/          今日课表、设置页
 android/app/src/main/kotlin/...  ScheduleForegroundService（实时通知）
 ios/Runner + ios/ClassWidget      Live Activity（见 ios/README.md）
 ```
 
-数据模型说明：ClassIsland 无教室字段，走班教室存于 `Subject.defaultRoom` / `ClassInfo.room`，并镜像进 `AttachedObjects["everyclass.room"]` 以保持档案往返兼容。`TimeRule.WeekDay` 为 1–7（周一=1）。参考：仓库根的 `Default.json`（空课表样例）与 `profile_schema_detailed.txt`。
+数据模型说明：课表按学期存储（一个 `Calendar` = 一学期，自包含作息/课程/例外）；用户只需指定**学期第一周**（`Calendar.firstWeekStart`），无需填学期起止。每条排课（`Meeting`）的时间二选一——引用作息表**第 N 节**（跟随作息，改一处全动）或**自定义时刻**（自由，可落在节次网格外）。走班教室存于 `CourseEvent.defaultLocation`（`Meeting.location` / 例外可覆盖）。星期为 1–7（周一=1）。参考：仓库根的 `sample_schedule.json`、`Default.json`。
 
 ## 开发
 

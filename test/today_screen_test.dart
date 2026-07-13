@@ -1,7 +1,7 @@
 import 'package:everyclass/app_state.dart';
 import 'package:everyclass/data/classisland_importer.dart';
-import 'package:everyclass/data/profile_repository.dart';
-import 'package:everyclass/models/profile.dart';
+import 'package:everyclass/data/database_repository.dart';
+import 'package:everyclass/models/database.dart';
 import 'package:everyclass/services/settings_service.dart';
 import 'package:everyclass/ui/today_screen.dart';
 import 'package:flutter/material.dart';
@@ -17,21 +17,21 @@ const _populated = '''
 }
 ''';
 
-class _MemRepo implements ProfileRepository {
-  Profile? _p;
-  _MemRepo(this._p);
+class _MemRepo implements DatabaseRepository {
+  Database? _db;
+  _MemRepo(this._db);
   @override
-  Future<void> clear() async => _p = null;
+  Future<void> clear() async => _db = null;
   @override
-  Future<Profile?> load() async => _p;
+  Future<Database?> load() async => _db;
   @override
-  Future<void> save(Profile profile) async => _p = profile;
+  Future<void> save(Database db) async => _db = db;
 }
 
-Future<AppState> _appWith(Profile p) async {
+Future<AppState> _appWith(Database db) async {
   SharedPreferences.setMockInitialValues({});
   final settings = await SettingsService.create();
-  return AppState(_MemRepo(p), settings, p);
+  return AppState(_MemRepo(db), settings, db);
 }
 
 Widget _wrap(AppState app) => ChangeNotifierProvider<AppState>.value(
@@ -40,15 +40,15 @@ Widget _wrap(AppState app) => ChangeNotifierProvider<AppState>.value(
     );
 
 void main() {
-  testWidgets('空档案显示导入提示', (tester) async {
-    final app = await _appWith(Profile.empty());
+  testWidgets('空数据库显示导入提示', (tester) async {
+    final app = await _appWith(Database.empty());
     await tester.pumpWidget(_wrap(app));
     await tester.pump();
     expect(find.text('还没有课表'), findsOneWidget);
     await tester.pumpWidget(const SizedBox()); // 释放周期性 Timer
   });
 
-  testWidgets('有档案渲染今日页且不崩溃', (tester) async {
+  testWidgets('有课表渲染今日页且不崩溃', (tester) async {
     final app = await _appWith(ClassIslandImporter.parse(_populated));
     await tester.pumpWidget(_wrap(app));
     await tester.pump();

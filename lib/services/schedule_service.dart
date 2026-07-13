@@ -1,6 +1,10 @@
-import '../models/class_plan.dart';
-import '../models/profile.dart';
+import '../models/bell_schedule.dart';
+import '../models/calendar.dart';
+import '../models/course_event.dart';
+import '../models/meeting.dart';
+import '../models/occurrence_override.dart';
 import '../models/resolved_lesson.dart';
+import '../util/coerce.dart';
 
 /// 某一天解析后的课表。
 class DaySchedule {
@@ -12,86 +16,178 @@ class DaySchedule {
   bool get isEmpty => lessons.isEmpty;
 }
 
-/// 调度引擎：把 [Profile] 投影成"某天的具体课表"，并给出当前/下一节。
+/// 一段空闲时间（距零点的起止）。
+class FreeSlot {
+  final Duration start;
+  final Duration end;
+  const FreeSlot(this.start, this.end);
+
+  Duration get length => end - start;
+}
+
+/// 调度引擎：把一张 [Calendar] 投影成「某天的具体课表」，并给出当前/下一节、
+/// 冲突检测与空闲时间。纯计算、无副作用。
 ///
-/// 纯计算、无副作用，便于单元测试。星期口径与 ClassIsland 对齐：`DateTime.weekday`
-/// 与 `TimeRule.weekDay` 都是 1–7、周一=1。
+/// 星期口径：`DateTime.weekday` 与 `Meeting.weekday` 都是 1–7、周一=1。
 class ScheduleService {
-  final Profile profile;
+  final Calendar calendar;
 
-  /// 学期第一周所在的日期（用于计算轮换周序）。null 表示不做轮换过滤。
-  final DateTime? termStart;
+  const ScheduleService(this.calendar);
 
-  const ScheduleService(this.profile, {this.termStart});
+  /// 目标日 [day] 的 1-based 学期周；未设 firstWeekStart 时返回 null。
+  int? weekOf(DateTime day) {
+    final fws = calendar.firstWeekStart;
+    if (fws == null) return null;
+    final start = _mondayOf(fws);
+    final d0 = DateTime(day.year, day.month, day.day);
+    final diff = d0.difference(start).inDays;
+    if (diff < 0) return null;
+    return diff ~/ 7 + 1;
+  }
 
   DaySchedule scheduleFor(DateTime day) {
-    final plan = _selectPlan(day, day.weekday);
-    if (plan == null) return DaySchedule(day: day, lessons: const []);
+    final week = weekOf(day);
+    final weekday = day.weekday;
+    final dateKey = _ymd(day);
 
-    final layout = profile.timeLayouts[plan.timeLayoutId];
-    if (layout == null) return DaySchedule(day: day, lessons: const []);
-
-    final lessons = <ResolvedLesson>[];
-    var classIdx = 0;
-    var period = 0;
-    for (final item in layout.items) {
-      if (!item.isLesson) continue;
-      period++;
-      // classes[i] 依次对应第 i 个上课时间点（ClassIsland 约定）。
-      final info =
-          classIdx < plan.classes.length ? plan.classes[classIdx] : null;
-      classIdx++;
-      if (info == null || info.subjectId.isEmpty || !info.isEnabled) continue;
-      final subject = profile.subjects[info.subjectId];
-      if (subject == null) continue;
-      final room = info.room.isNotEmpty ? info.room : subject.defaultRoom;
-      lessons.add(
-        ResolvedLesson(
-          subjectId: info.subjectId,
-          subject: subject,
-          room: room,
-          start: item.start,
-          end: item.end,
-          period: period,
-        ),
-      );
-    }
-    return DaySchedule(day: day, lessons: lessons);
-  }
-
-  /// 选出当天生效的课表：weekDay 命中；轮换周命中的精确课表优先于"每周"课表。
-  ClassPlan? _selectPlan(DateTime day, int weekday) {
-    ClassPlan? everyWeek;
-    for (final plan in profile.classPlans.values) {
-      if (!plan.isEnabled || plan.isOverlay) continue;
-      if (plan.timeRule.weekDay != weekday) continue;
-      if (plan.timeRule.weekCountDiv == 0) {
-        everyWeek ??= plan;
-      } else if (_matchesWeekCycle(day, plan.timeRule)) {
-        return plan;
+    final resolved = <ResolvedLesson>[];
+    for (final course in calendar.courses.values) {
+      for (final meeting in course.meetings) {
+        final lesson = _resolveOccurrence(
+          course,
+          meeting,
+          day,
+          weekday,
+          week,
+          dateKey,
+        );
+        if (lesson != null) resolved.add(lesson);
       }
     }
-    return everyWeek;
+
+    // 按开始时刻排序，再赋 1-based period（当天顺序序号）。
+    resolved.sort((a, b) => a.start.compareTo(b.start));
+    final withPeriod = <ResolvedLesson>[];
+    for (var i = 0; i < resolved.length; i++) {
+      withPeriod.add(_withPeriod(resolved[i], i + 1));
+    }
+    return DaySchedule(day: day, lessons: withPeriod);
   }
 
-  bool _matchesWeekCycle(DateTime day, TimeRule rule) {
-    if (termStart == null) return true; // 未设学期起始日 → 不过滤轮换
-    final total = rule.weekCountDivTotal <= 0 ? 2 : rule.weekCountDivTotal;
-    return (_weekIndex(day) % total) + 1 == rule.weekCountDiv;
+  /// 把一条 Meeting 在 [day] 的这次课解析成 [ResolvedLesson]；不生效则 null。
+  ///
+  /// 优先级：先看本 Meeting 有没有以 [day] 为「原发生日期」的例外（停课/调课/
+  /// 改教室）；再看有没有别的日期调课/补课「落到」了 [day]。
+  ResolvedLesson? _resolveOccurrence(
+    CourseEvent course,
+    Meeting meeting,
+    DateTime day,
+    int weekday,
+    int? week,
+    String dateKey,
+  ) {
+    // 1) 本日是否有以「原发生日期=本日」为键的补课（added）。
+    final addedHere = meeting.overrides[dateKey];
+    if (addedHere != null && addedHere.added) {
+      return _build(course, meeting, day, weekday, override: addedHere);
+    }
+
+    // 2) 别处调课搬到了本日？扫描所有 movedToDate==本日 的例外。
+    for (final entry in meeting.overrides.entries) {
+      final ov = entry.value;
+      if (ov.movedToDate == dateKey) {
+        // 用「原发生日期」的星期取默认作息，但排到本日。
+        final origin = DateTime.tryParse(entry.key);
+        final originWeekday = origin?.weekday ?? weekday;
+        return _build(course, meeting, day, originWeekday, override: ov);
+      }
+    }
+
+    // 3) 常规重复：星期 + 周次规则命中。
+    if (meeting.weekday != weekday) return null;
+    if (week != null && !meeting.weeks.matches(week)) return null;
+
+    final ov = meeting.overrides[dateKey];
+    if (ov != null) {
+      if (ov.excluded) return null; // 停课
+      if (ov.movedToDate != null && ov.movedToDate != dateKey) {
+        return null; // 调走了，本日不再有（会在第 2 步于目标日生成）
+      }
+      return _build(course, meeting, day, weekday, override: ov);
+    }
+    return _build(course, meeting, day, weekday);
   }
 
-  /// 从学期起始周的周一算起、目标日所在周的 0-based 序号。
-  int _weekIndex(DateTime day) {
-    final start = _mondayOf(termStart!);
-    final d0 = DateTime(day.year, day.month, day.day);
-    final diffDays = d0.difference(start).inDays;
-    return diffDays >= 0 ? diffDays ~/ 7 : (diffDays - 6) ~/ 7;
+  /// 解析时刻 + 教室 + 教师，产出未编号的 ResolvedLesson；解析不出时刻则 null。
+  ResolvedLesson? _build(
+    CourseEvent course,
+    Meeting meeting,
+    DateTime day,
+    int weekday, {
+    OccurrenceOverride? override,
+  }) {
+    final customStart = override?.customStart ?? meeting.customStart;
+    final customEnd = override?.customEnd ?? meeting.customEnd;
+
+    Duration? start;
+    Duration? end;
+    var startPeriod = override?.startPeriod ?? meeting.startPeriod;
+    var endPeriod = override?.endPeriod ?? meeting.endPeriod;
+
+    if (customStart != null && customStart.isNotEmpty) {
+      start = parseHhmm(customStart);
+      end = parseHhmm(customEnd);
+      startPeriod = 0;
+      endPeriod = 0;
+    } else {
+      final schedule = _bellFor(meeting, weekday);
+      if (schedule == null) return null;
+      final byIndex = schedule.classByIndex;
+      final s = byIndex[startPeriod];
+      final e = byIndex[endPeriod == 0 ? startPeriod : endPeriod];
+      if (s == null) return null;
+      start = s.start;
+      end = (e ?? s).end;
+    }
+    if (start == null || end == null) return null;
+
+    final room = override?.location ?? meeting.location ?? course.defaultLocation;
+    final teacher = override?.teacher ?? meeting.teacher ?? course.teacher;
+
+    return ResolvedLesson(
+      subjectId: course.id,
+      subjectName: course.title,
+      teacher: teacher,
+      room: room,
+      start: start,
+      end: end,
+      period: 0,
+      startPeriod: startPeriod,
+      endPeriod: endPeriod,
+      color: course.color,
+    );
   }
 
-  DateTime _mondayOf(DateTime d) {
-    final dd = DateTime(d.year, d.month, d.day);
-    return dd.subtract(Duration(days: dd.weekday - 1));
+  BellSchedule? _bellFor(Meeting meeting, int weekday) {
+    final id = meeting.bellScheduleId;
+    if (id != null && calendar.bellSchedules[id] != null) {
+      return calendar.bellSchedules[id];
+    }
+    return calendar.bellScheduleForWeekday(weekday);
   }
+
+  ResolvedLesson _withPeriod(ResolvedLesson l, int period) => ResolvedLesson(
+        subjectId: l.subjectId,
+        subjectName: l.subjectName,
+        teacher: l.teacher,
+        room: l.room,
+        start: l.start,
+        end: l.end,
+        period: period,
+        startPeriod: l.startPeriod,
+        endPeriod: l.endPeriod,
+        color: l.color,
+      );
 
   /// 当前正在上的课；无则 null。
   ResolvedLesson? currentLesson(DateTime now) {
@@ -108,4 +204,50 @@ class ScheduleService {
     }
     return null;
   }
+
+  /// 某天的时间冲突：任意两节课时间区间重叠即为一对冲突。
+  List<(ResolvedLesson, ResolvedLesson)> conflicts(DateTime day) {
+    final lessons = scheduleFor(day).lessons;
+    final out = <(ResolvedLesson, ResolvedLesson)>[];
+    for (var i = 0; i < lessons.length; i++) {
+      for (var j = i + 1; j < lessons.length; j++) {
+        final a = lessons[i];
+        final b = lessons[j];
+        if (a.start < b.end && b.start < a.end) out.add((a, b));
+      }
+    }
+    return out;
+  }
+
+  /// 某天在 [from]–[to] 窗口内、未被课程占用的空闲时段。
+  List<FreeSlot> freeSlots(
+    DateTime day, {
+    Duration from = const Duration(hours: 8),
+    Duration to = const Duration(hours: 21),
+  }) {
+    final busy = scheduleFor(day).lessons
+        .map((l) => FreeSlot(l.start, l.end))
+        .toList()
+      ..sort((a, b) => a.start.compareTo(b.start));
+    final out = <FreeSlot>[];
+    var cursor = from;
+    for (final b in busy) {
+      if (b.end <= cursor) continue;
+      if (b.start > cursor) {
+        out.add(FreeSlot(cursor, b.start < to ? b.start : to));
+      }
+      if (b.end > cursor) cursor = b.end;
+      if (cursor >= to) break;
+    }
+    if (cursor < to) out.add(FreeSlot(cursor, to));
+    return out.where((s) => s.length > Duration.zero).toList();
+  }
+
+  DateTime _mondayOf(DateTime d) {
+    final dd = DateTime(d.year, d.month, d.day);
+    return dd.subtract(Duration(days: dd.weekday - 1));
+  }
+
+  static String _ymd(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }

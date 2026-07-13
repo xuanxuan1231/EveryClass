@@ -1,78 +1,97 @@
 import 'package:flutter/foundation.dart';
 
 import 'data/classisland_importer.dart';
-import 'data/local_profile_repository.dart';
-import 'data/profile_repository.dart';
-import 'models/profile.dart';
-import 'models/subject.dart';
+import 'data/database_repository.dart';
+import 'data/local_database_repository.dart';
+import 'models/calendar.dart';
+import 'models/course_event.dart';
+import 'models/database.dart';
 import 'platform/live_notification.dart';
 import 'services/schedule_service.dart';
 import 'services/settings_service.dart';
 
-/// 应用级状态：持有档案与设置，暴露导入/教室/通知等操作，变更后驱动 UI 与通知刷新。
+/// 应用级状态：持有数据库与设置，暴露导入/教室/学期/通知等操作，变更后驱动 UI
+/// 与通知刷新。
 class AppState extends ChangeNotifier {
-  final ProfileRepository _repo;
+  final DatabaseRepository _repo;
   final SettingsService settings;
-  Profile _profile;
+  Database _db;
 
-  AppState(this._repo, this.settings, this._profile);
+  AppState(this._repo, this.settings, this._db);
 
   static Future<AppState> create() async {
-    final repo = LocalProfileRepository();
+    final repo = LocalDatabaseRepository();
     final settings = await SettingsService.create();
-    final profile = await repo.load() ?? Profile.empty();
-    final state = AppState(repo, settings, profile);
-    // 启动时若已开启通知且有课表，刷新一次。
+    final db = await repo.load() ?? Database.empty();
+    final state = AppState(repo, settings, db);
     await state._refreshNotification();
     return state;
   }
 
-  Profile get profile => _profile;
+  Database get database => _db;
 
-  ScheduleService get schedule =>
-      ScheduleService(_profile, termStart: settings.termStart);
+  /// 当前选中的学期课表；无则 null。
+  Calendar? get calendar => _db.selected;
 
-  /// 是否已导入可用课表（有时间表且有课表定义）。
-  bool get hasSchedule =>
-      _profile.timeLayouts.isNotEmpty && _profile.classPlans.isNotEmpty;
+  ScheduleService? get schedule {
+    final cal = calendar;
+    return cal == null ? null : ScheduleService(cal);
+  }
 
-  /// 当前是学期第几周（未设学期起始日则为 null）。
+  /// 是否已有可用课表（有作息且有课程排课）。
+  bool get hasSchedule {
+    final cal = calendar;
+    if (cal == null) return false;
+    if (cal.bellSchedules.isEmpty) return false;
+    return cal.courses.values.any((c) => c.meetings.isNotEmpty);
+  }
+
+  /// 当前是学期第几周（未设 firstWeekStart 则为 null）。
   int? get weekNumber {
-    final ts = settings.termStart;
-    if (ts == null) return null;
-    final monday = ts.subtract(Duration(days: ts.weekday - 1));
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final diff = today
-        .difference(DateTime(monday.year, monday.month, monday.day))
-        .inDays;
-    if (diff < 0) return null;
-    return diff ~/ 7 + 1;
+    return schedule?.weekOf(now);
   }
 
-  /// 导入 ClassIsland 档案文本；抛出的 [ImportException] 由调用方展示。
+  /// 学期第一周所在日期（存于选中 Calendar）。
+  DateTime? get firstWeekStart => calendar?.firstWeekStart;
+
+  /// 导入 ClassIsland 档案文本（导入即转换）；抛出的 [ImportException] 由调用方展示。
   Future<void> importFromText(String jsonText) async {
-    final imported = ClassIslandImporter.parse(jsonText);
-    _profile = _mergeRooms(imported, _profile);
-    await _repo.save(_profile);
+    final imported = ClassIslandImporter.parse(
+      jsonText,
+      firstWeekStart: firstWeekStart,
+    );
+    _db = _mergeRooms(imported, _db);
+    await _repo.save(_db);
     notifyListeners();
     await _refreshNotification();
   }
 
-  /// 设置某科目的默认教室（走班场景补齐 ClassIsland 缺失的教室）。
-  Future<void> setSubjectRoom(String subjectId, String room) async {
-    final subject = _profile.subjects[subjectId];
-    if (subject == null) return;
-    final subjects = Map<String, Subject>.from(_profile.subjects);
-    subjects[subjectId] = subject.copyWith(defaultRoom: room.trim());
-    _profile = _profile.copyWith(subjects: subjects);
-    await _repo.save(_profile);
+  /// 设置某门课的默认教室（走班场景）。
+  Future<void> setCourseRoom(String courseId, String room) async {
+    final cal = calendar;
+    if (cal == null) return;
+    final course = cal.courses[courseId];
+    if (course == null) return;
+    final courses = Map<String, CourseEvent>.from(cal.courses);
+    courses[courseId] = course.copyWith(defaultLocation: room.trim());
+    _db = _db.withCalendar(cal.copyWith(courses: courses));
+    await _repo.save(_db);
     notifyListeners();
     await _refreshNotification();
   }
 
-  Future<void> setTermStart(DateTime? day) async {
-    await settings.setTermStart(day);
+  /// 设置学期第一周所在日期（写入选中 Calendar 的 firstWeekStart）。
+  Future<void> setFirstWeekStart(DateTime? day) async {
+    final cal = calendar;
+    if (cal == null) return;
+    final normalized =
+        day == null ? null : DateTime(day.year, day.month, day.day);
+    _db = _db.withCalendar(cal.copyWith(
+      firstWeekStart: normalized,
+      clearFirstWeekStart: normalized == null,
+    ));
+    await _repo.save(_db);
     notifyListeners();
     await _refreshNotification();
   }
@@ -108,9 +127,10 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _refreshNotification() async {
-    if (hasSchedule) {
+    final svc = schedule;
+    if (hasSchedule && svc != null) {
       await LiveNotification.start(
-        schedule.scheduleFor(DateTime.now()),
+        svc.scheduleFor(DateTime.now()),
         enhancedCountdown: settings.enhancedCountdown,
         remindBefore: settings.remindBefore,
         remindStart: settings.remindStart,
@@ -122,24 +142,28 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// 再导入时按 subjectId（回退 name）保留已填的教室，避免每次导入都要重填。
-  static Profile _mergeRooms(Profile incoming, Profile old) {
-    if (old.subjects.isEmpty) return incoming;
-    final roomByName = <String, String>{};
-    for (final s in old.subjects.values) {
-      if (s.defaultRoom.isNotEmpty) roomByName[s.name] = s.defaultRoom;
+  /// 再导入时按 courseId（回退 title）保留已填的教室，避免每次导入都要重填。
+  static Database _mergeRooms(Database incoming, Database old) {
+    final oldCal = old.selected;
+    final newCal = incoming.selected;
+    if (oldCal == null || newCal == null) return incoming;
+    if (oldCal.courses.isEmpty) return incoming;
+
+    final roomByTitle = <String, String>{};
+    for (final c in oldCal.courses.values) {
+      if (c.defaultLocation.isNotEmpty) roomByTitle[c.title] = c.defaultLocation;
     }
-    final subjects = <String, Subject>{};
-    incoming.subjects.forEach((id, s) {
-      var room = s.defaultRoom;
+    final courses = <String, CourseEvent>{};
+    newCal.courses.forEach((id, c) {
+      var room = c.defaultLocation;
       if (room.isEmpty) {
-        final byId = old.subjects[id];
-        room = (byId != null && byId.defaultRoom.isNotEmpty)
-            ? byId.defaultRoom
-            : (roomByName[s.name] ?? '');
+        final byId = oldCal.courses[id];
+        room = (byId != null && byId.defaultLocation.isNotEmpty)
+            ? byId.defaultLocation
+            : (roomByTitle[c.title] ?? '');
       }
-      subjects[id] = s.copyWith(defaultRoom: room);
+      courses[id] = c.copyWith(defaultLocation: room);
     });
-    return incoming.copyWith(subjects: subjects);
+    return incoming.withCalendar(newCal.copyWith(courses: courses));
   }
 }

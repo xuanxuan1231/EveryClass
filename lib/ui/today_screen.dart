@@ -38,13 +38,16 @@ class _TodayScreenState extends State<TodayScreen> {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final now = _now;
-    final day = app.schedule.scheduleFor(now);
+    final svc = app.schedule;
+    final day = svc?.scheduleFor(now);
 
     ResolvedLesson? current;
     ResolvedLesson? next;
-    for (final l in day.lessons) {
-      if (l.isCurrentAt(now)) current = l;
-      if (next == null && l.startOn(now).isAfter(now)) next = l;
+    if (day != null) {
+      for (final l in day.lessons) {
+        if (l.isCurrentAt(now)) current = l;
+        if (next == null && l.startOn(now).isAfter(now)) next = l;
+      }
     }
 
     return Scaffold(
@@ -52,7 +55,7 @@ class _TodayScreenState extends State<TodayScreen> {
         title: const Text('今日课表'),
         centerTitle: false,
       ),
-      body: !app.hasSchedule
+      body: !app.hasSchedule || day == null
           ? const _EmptyImportHint()
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),

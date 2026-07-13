@@ -94,3 +94,49 @@ String durationToTimeSpan(Duration d) {
   final s = two(d.inSeconds.remainder(60));
   return '$h:$m:$s';
 }
+
+/// 把时长回写成新模型的 `HH:mm` 文本（分钟粒度，丢弃秒）。
+String durationToHhmm(Duration d) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${two(d.inHours)}:${two(d.inMinutes.remainder(60))}';
+}
+
+/// 解析 `HH:mm` 或 `HH:mm:ss` 为距零点的时长；失败返回 null。
+Duration? parseHhmm(dynamic v) => parseTimeOfDay(v);
+
+/// 解析 ISO-8601 时长（子集：`PT5M`、`-PT1H30M`、`PT45S`），失败返回 null。
+///
+/// 只处理时/分/秒（课程提醒不涉及日/月/年）。前导 `-` 表示负偏移。
+Duration? parseIso8601Duration(dynamic v) {
+  if (v is num) return Duration(seconds: v.toInt());
+  if (v == null) return null;
+  var s = v.toString().trim();
+  if (s.isEmpty) return null;
+  var sign = 1;
+  if (s.startsWith('-')) {
+    sign = -1;
+    s = s.substring(1);
+  } else if (s.startsWith('+')) {
+    s = s.substring(1);
+  }
+  final m = RegExp(r'^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$').firstMatch(s);
+  if (m == null) return null;
+  final h = int.tryParse(m.group(1) ?? '0') ?? 0;
+  final min = int.tryParse(m.group(2) ?? '0') ?? 0;
+  final sec = int.tryParse(m.group(3) ?? '0') ?? 0;
+  return Duration(hours: h, minutes: min, seconds: sec) * sign;
+}
+
+/// 把时长回写为 ISO-8601 时长文本（`PT5M` / `-PT1H30M`）。
+String iso8601Duration(Duration d) {
+  final neg = d.isNegative;
+  d = d.abs();
+  final h = d.inHours;
+  final m = d.inMinutes.remainder(60);
+  final s = d.inSeconds.remainder(60);
+  final buf = StringBuffer(neg ? '-PT' : 'PT');
+  if (h > 0) buf.write('${h}H');
+  if (m > 0) buf.write('${m}M');
+  if (s > 0 || (h == 0 && m == 0)) buf.write('${s}S');
+  return buf.toString();
+}

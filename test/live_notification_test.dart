@@ -1,9 +1,18 @@
 import 'package:everyclass/models/resolved_lesson.dart';
-import 'package:everyclass/models/subject.dart';
 import 'package:everyclass/platform/live_notification.dart';
 import 'package:everyclass/services/schedule_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+const _mathLesson = ResolvedLesson(
+  subjectId: 'math',
+  subjectName: '数学',
+  teacher: '李老师',
+  room: 'A101',
+  period: 1,
+  start: Duration(hours: 8),
+  end: Duration(hours: 8, minutes: 45),
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -28,16 +37,7 @@ void main() {
   test('统一通道返回原生可用性与操作结果', () async {
     final day = DaySchedule(
       day: DateTime(2026, 7, 11),
-      lessons: const [
-        ResolvedLesson(
-          subjectId: 'math',
-          subject: Subject(name: '数学', teacherName: '李老师'),
-          room: 'A101',
-          period: 1,
-          start: Duration(hours: 8),
-          end: Duration(hours: 8, minutes: 45),
-        ),
-      ],
+      lessons: const [_mathLesson],
     );
 
     expect(await LiveNotification.isSupported(), isTrue);
@@ -79,16 +79,7 @@ void main() {
   test('start 下发课程提醒设置', () async {
     final day = DaySchedule(
       day: DateTime(2026, 7, 11),
-      lessons: const [
-        ResolvedLesson(
-          subjectId: 'math',
-          subject: Subject(name: '数学', teacherName: '李老师'),
-          room: 'A101',
-          period: 1,
-          start: Duration(hours: 8),
-          end: Duration(hours: 8, minutes: 45),
-        ),
-      ],
+      lessons: const [_mathLesson],
     );
 
     expect(
