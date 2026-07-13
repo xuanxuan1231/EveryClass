@@ -77,23 +77,45 @@ class AppState extends ChangeNotifier {
     await _refreshNotification();
   }
 
-  Future<void> setNotificationEnabled(bool value) async {
-    await settings.setNotificationEnabled(value);
-    notifyListeners();
-    await _refreshNotification();
-  }
-
   Future<void> setEnhancedCountdown(bool value) async {
     await settings.setEnhancedCountdown(value);
     notifyListeners();
     await _refreshNotification();
   }
 
+  Future<void> setRemindBefore(bool value) async {
+    await settings.setRemindBefore(value);
+    notifyListeners();
+    await _refreshNotification();
+  }
+
+  Future<void> setRemindStart(bool value) async {
+    await settings.setRemindStart(value);
+    notifyListeners();
+    await _refreshNotification();
+  }
+
+  Future<void> setRemindEnd(bool value) async {
+    await settings.setRemindEnd(value);
+    notifyListeners();
+    await _refreshNotification();
+  }
+
+  Future<void> setRemindLeadSeconds(int value) async {
+    await settings.setRemindLeadSeconds(value);
+    notifyListeners();
+    await _refreshNotification();
+  }
+
   Future<void> _refreshNotification() async {
-    if (settings.notificationEnabled && hasSchedule) {
+    if (hasSchedule) {
       await LiveNotification.start(
         schedule.scheduleFor(DateTime.now()),
         enhancedCountdown: settings.enhancedCountdown,
+        remindBefore: settings.remindBefore,
+        remindStart: settings.remindStart,
+        remindEnd: settings.remindEnd,
+        remindLeadSeconds: settings.remindLeadSeconds,
       );
     } else {
       await LiveNotification.stop();
