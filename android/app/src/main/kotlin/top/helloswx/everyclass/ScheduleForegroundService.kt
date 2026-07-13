@@ -33,16 +33,35 @@ class ScheduleForegroundService : Service() {
         const val ACTION_STOP = "everyclass.action.STOP"
         const val EXTRA_LESSONS = "lessons"
         const val EXTRA_ENHANCED = "enhanced"
+        const val EXTRA_REMIND_BEFORE = "remind_before"
+        const val EXTRA_REMIND_START = "remind_start"
+        const val EXTRA_REMIND_END = "remind_end"
+        const val EXTRA_REMIND_LEAD_SEC = "remind_lead_sec"
 
         private const val CHANNEL_ID = "everyclass_live"
+        private const val REMINDER_CHANNEL_ID = "everyclass_reminder"
         private const val NOTIF_ID = 1001
+        private const val REMINDER_NOTIF_ID = 2001
         private const val PREFS = "everyclass_fgs"
         private const val KEY_LESSONS = "lessons_json"
         private const val KEY_BASE = "lessons_base"
         private const val KEY_ENHANCED = "enhanced"
+        private const val KEY_REMIND_BEFORE = "remind_before"
+        private const val KEY_REMIND_START = "remind_start"
+        private const val KEY_REMIND_END = "remind_end"
+        private const val KEY_REMIND_LEAD_SEC = "remind_lead_sec"
+        private const val KEY_WATERMARK = "remind_watermark"
         private const val ACCENT = 0xFF3F51B5.toInt()
         private const val TICK_INTERVAL_MS = 60_000L
     }
+
+    private enum class ReminderType { UPCOMING, BEGIN, END }
+
+    private data class ReminderEvent(
+        val timeMs: Long,
+        val type: ReminderType,
+        val lesson: Lesson,
+    )
 
     private data class Lesson(
         val subject: String,
@@ -69,6 +88,12 @@ class ScheduleForegroundService : Service() {
     private val ticker = Runnable { tick() }
     private var lessons: List<Lesson> = emptyList()
     private var enhanced = false
+    private var remindBefore = false
+    private var remindStart = false
+    private var remindEnd = false
+    private var leadMs = 300 * 1000L
+    // 已处理到的时刻（绝对 ms）：只补发 (watermark, now] 区间内的提醒，防止重复/补发历史。
+    private var reminderWatermark = 0L
 
     override fun onBind(intent: Intent?) = null
 
@@ -88,6 +113,12 @@ class ScheduleForegroundService : Service() {
             ACTION_START -> {
                 val json = intent.getStringExtra(EXTRA_LESSONS)
                 enhanced = intent.getBooleanExtra(EXTRA_ENHANCED, false)
+                remindBefore = intent.getBooleanExtra(EXTRA_REMIND_BEFORE, false)
+                remindStart = intent.getBooleanExtra(EXTRA_REMIND_START, false)
+                remindEnd = intent.getBooleanExtra(EXTRA_REMIND_END, false)
+                leadMs = intent.getIntExtra(EXTRA_REMIND_LEAD_SEC, 300).coerceAtLeast(0) * 1000L
+                // 新下发课表：水位线置为当前，避免补发今天已过去的提醒。
+                reminderWatermark = System.currentTimeMillis()
                 saveLessons(json)
                 lessons = parse(json)
                 startCycle()
@@ -95,8 +126,16 @@ class ScheduleForegroundService : Service() {
             else -> {
                 // 进程被系统重启（null intent）：从持久化恢复今日课表与设置。
                 lessons = parse(loadLessons())
-                enhanced = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                    .getBoolean(KEY_ENHANCED, false)
+                val p = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                enhanced = p.getBoolean(KEY_ENHANCED, false)
+                remindBefore = p.getBoolean(KEY_REMIND_BEFORE, false)
+                remindStart = p.getBoolean(KEY_REMIND_START, false)
+                remindEnd = p.getBoolean(KEY_REMIND_END, false)
+                leadMs = p.getInt(KEY_REMIND_LEAD_SEC, 300).coerceAtLeast(0) * 1000L
+                // 恢复水位线；数据非今日则从现在起（不补发历史）。
+                reminderWatermark =
+                    if (lessons.isEmpty()) System.currentTimeMillis()
+                    else p.getLong(KEY_WATERMARK, System.currentTimeMillis())
                 startCycle()
             }
         }
@@ -112,12 +151,14 @@ class ScheduleForegroundService : Service() {
         val state = computeState()
         // 必须在 5 秒内前台化，否则会 ANR。
         startForegroundWith(buildNotification(state))
+        fireDueReminders(System.currentTimeMillis())
         afterPost(state)
     }
 
     private fun tick() {
         val state = computeState()
         notificationManager().notify(NOTIF_ID, buildNotification(state))
+        fireDueReminders(System.currentTimeMillis())
         afterPost(state)
     }
 
@@ -139,6 +180,10 @@ class ScheduleForegroundService : Service() {
         for (l in lessons) {
             if (l.startMs > now) nextBoundary = minOf(nextBoundary, l.startMs)
             if (l.endMs > now) nextBoundary = minOf(nextBoundary, l.endMs)
+        }
+        // 提醒时刻（尤其"即将上课" = start-lead）并入边界，确保服务准点醒来弹提醒。
+        for (ev in buildReminderEvents()) {
+            if (ev.timeMs > now) nextBoundary = minOf(nextBoundary, ev.timeMs)
         }
         if (nextBoundary == Long.MAX_VALUE) return
         // 逐秒模式每秒刷新（驱动 chip 跳秒，因 shortCriticalText 是静态文本）；否则每分钟。
@@ -177,9 +222,14 @@ class ScheduleForegroundService : Service() {
                 val prevEnd = lessons.filter { it.endMs <= now }.maxOfOrNull { it.endMs }
                 val anchor = prevEnd ?: (nxt.startMs - 3_600_000L) // 无前节则取前 1 小时窗口
                 val total = ((nxt.startMs - anchor) / 1000).toInt().coerceAtLeast(1)
-                val soon = nxt.startMs - now <= 60_000L // 上课前 1 分钟
+                // 「即将上课」（铃铛 + 标题）与一次性「即将上课」提醒同刻切换：仅当该提醒开启时，
+                // 于课前 leadMs（即提醒发出的同一时刻）进入；提醒关闭则不显示铃铛，始终「下一节」。
+                // 条件与 buildReminderEvents() 里 UPCOMING 事件一致，保证两者在同一 tick 触发。
+                val soon = remindBefore && leadMs > 0 && nxt.startMs - now <= leadMs
+                // 标题前缀标明状态：临近上课用「即将上课」，否则「下一节」。chip 内容不变。
+                val prefix = if (soon) "即将上课" else "下一节"
                 NState(
-                    title = nxt.subject,
+                    title = if (nxt.subject.isBlank()) prefix else "$prefix · ${nxt.subject}",
                     text = line(nxt.room, "${fmt(nxt.startMs)}-${fmt(nxt.endMs)}"),
                     // 下一节：正号。逐秒=M:SS，每分钟=Nm
                     chipText = if (enhanced) fmtClock(nxt.startMs - now)
@@ -220,6 +270,94 @@ class ScheduleForegroundService : Service() {
         val m = (totalSec % 3600) / 60
         val s = totalSec % 60
         return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+    }
+
+    /** 提前量（ms）→ 中文时长：整分「N 分钟」，含秒「N 分 S 秒」，不足一分「S 秒」。 */
+    private fun leadText(ms: Long): String {
+        val totalSec = (ms / 1000).coerceAtLeast(0)
+        val m = totalSec / 60
+        val s = totalSec % 60
+        return when {
+            m == 0L -> "$s 秒"
+            s == 0L -> "$m 分钟"
+            else -> "$m 分 $s 秒"
+        }
+    }
+
+    // ---- 课程提醒（一次性 heads-up，独立渠道/ID，可划掉）----
+
+    /** 依据开关与提前量，从今日课表生成提醒事件，按时刻排序。 */
+    private fun buildReminderEvents(): List<ReminderEvent> {
+        if (!remindBefore && !remindStart && !remindEnd) return emptyList()
+        val out = ArrayList<ReminderEvent>()
+        for (l in lessons) {
+            if (remindBefore && leadMs > 0) {
+                out.add(ReminderEvent(l.startMs - leadMs, ReminderType.UPCOMING, l))
+            }
+            if (remindStart) out.add(ReminderEvent(l.startMs, ReminderType.BEGIN, l))
+            if (remindEnd) out.add(ReminderEvent(l.endMs, ReminderType.END, l))
+        }
+        out.sortBy { it.timeMs }
+        return out
+    }
+
+    /** 补发 (watermark, now] 区间内到期的提醒，随后推进并持久化水位线。 */
+    private fun fireDueReminders(now: Long) {
+        // 时钟回拨（多见于手动改系统时间测试）：水位线卡在未来会吞掉之后的提醒，
+        // 这里把它拉回当前，保证后续事件能正常触发。
+        if (now < reminderWatermark) reminderWatermark = now
+        for (ev in buildReminderEvents()) {
+            if (ev.timeMs in (reminderWatermark + 1)..now) postReminder(ev)
+        }
+        if (now > reminderWatermark) {
+            reminderWatermark = now
+            getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putLong(KEY_WATERMARK, now)
+                .apply()
+        }
+    }
+
+    private fun postReminder(ev: ReminderEvent) {
+        val l = ev.lesson
+        val (title, iconRes) = when (ev.type) {
+            // 标题带上提前量：如「5 分钟后上课」「1 分 30 秒后上课」，与提醒发出的时刻一致。
+            ReminderType.UPCOMING -> "${leadText(leadMs)}后上课" to R.drawable.ic_stat_soon
+            ReminderType.BEGIN -> "上课" to R.drawable.ic_stat_class
+            ReminderType.END -> "下课" to R.drawable.ic_stat_idle
+        }
+        val text = when (ev.type) {
+            // 即将上课 / 上课：正文仅显示科目、时间、教室（提前量已在标题体现）。
+            ReminderType.UPCOMING, ReminderType.BEGIN ->
+                line(l.room, "${fmt(l.startMs)}-${fmt(l.endMs)}").let {
+                    if (l.subject.isBlank()) it else "${l.subject} · $it"
+                }
+            ReminderType.END ->
+                if (l.subject.isBlank()) "本节已结束" else "${l.subject} · 本节已结束"
+        }
+
+        val contentIntent = PendingIntent.getActivity(
+            this,
+            1,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+
+        // 一次性提醒：非 ongoing、可划掉、可 heads-up（不 setOnlyAlertOnce，保证每次都提示）。
+        val n = NotificationCompat.Builder(this, REMINDER_CHANNEL_ID)
+            .setSmallIcon(iconRes)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setColor(ACCENT)
+            .setAutoCancel(true)
+            .setOngoing(false)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(contentIntent)
+            .build()
+        // 单一 ID：新提醒替换旧的，避免课间堆积一排过期提醒。
+        notificationManager().notify(REMINDER_NOTIF_ID, n)
     }
 
     // ---- 通知构建 ----
@@ -286,6 +424,18 @@ class ScheduleForegroundService : Service() {
             setShowBadge(false)
         }
         notificationManager().createNotificationChannel(ch)
+
+        // 提醒渠道：高优先级以便 heads-up + 声音/振动。
+        val reminder = NotificationChannel(
+            REMINDER_CHANNEL_ID,
+            "课程提醒",
+            NotificationManager.IMPORTANCE_HIGH,
+        ).apply {
+            description = "上课、下课、即将上课时的一次性提醒"
+            setShowBadge(true)
+            enableVibration(true)
+        }
+        notificationManager().createNotificationChannel(reminder)
     }
 
     private fun startForegroundWith(n: Notification) {
@@ -346,6 +496,11 @@ class ScheduleForegroundService : Service() {
             .putString(KEY_LESSONS, json ?: "")
             .putLong(KEY_BASE, startOfToday())
             .putBoolean(KEY_ENHANCED, enhanced)
+            .putBoolean(KEY_REMIND_BEFORE, remindBefore)
+            .putBoolean(KEY_REMIND_START, remindStart)
+            .putBoolean(KEY_REMIND_END, remindEnd)
+            .putInt(KEY_REMIND_LEAD_SEC, (leadMs / 1000L).toInt())
+            .putLong(KEY_WATERMARK, reminderWatermark)
             .apply()
     }
 

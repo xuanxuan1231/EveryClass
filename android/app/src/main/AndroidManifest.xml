@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <!-- Android 16 实时更新（Live Updates / 提升为常驻）非运行时权限 -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS"/>
+    <!-- 课程提醒（一次性 heads-up）的振动 -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
 
     <application
         android:label="EveryClass"

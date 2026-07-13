@@ -34,6 +34,22 @@ class MainActivity : FlutterActivity() {
                             action = ScheduleForegroundService.ACTION_START
                             putExtra(ScheduleForegroundService.EXTRA_LESSONS, lessonsToJson(lessons))
                             putExtra(ScheduleForegroundService.EXTRA_ENHANCED, enhanced)
+                            putExtra(
+                                ScheduleForegroundService.EXTRA_REMIND_BEFORE,
+                                call.argument<Boolean>("remindBefore") ?: false,
+                            )
+                            putExtra(
+                                ScheduleForegroundService.EXTRA_REMIND_START,
+                                call.argument<Boolean>("remindStart") ?: false,
+                            )
+                            putExtra(
+                                ScheduleForegroundService.EXTRA_REMIND_END,
+                                call.argument<Boolean>("remindEnd") ?: false,
+                            )
+                            putExtra(
+                                ScheduleForegroundService.EXTRA_REMIND_LEAD_SEC,
+                                call.argument<Int>("remindLeadSeconds") ?: 300,
+                            )
                         }
                         ContextCompat.startForegroundService(this, intent)
                         result.success(null)
