@@ -30,9 +30,17 @@ class ScheduleForegroundService : Service() {
 
     companion object {
         const val ACTION_START = "everyclass.action.START"
+        const val ACTION_UPDATE = "everyclass.action.UPDATE"
         const val ACTION_STOP = "everyclass.action.STOP"
         const val EXTRA_LESSONS = "lessons"
         const val EXTRA_ENHANCED = "enhanced"
+        const val EXTRA_SUBJECT = "subject"
+        const val EXTRA_ROOM = "room"
+        const val EXTRA_TEACHER = "teacher"
+        const val EXTRA_PHASE = "phase"
+        const val EXTRA_STATUS_LABEL = "status_label"
+        const val EXTRA_COUNTDOWN_START = "countdown_start"
+        const val EXTRA_COUNTDOWN_END = "countdown_end"
         const val EXTRA_REMIND_BEFORE = "remind_before"
         const val EXTRA_REMIND_START = "remind_start"
         const val EXTRA_REMIND_END = "remind_end"
@@ -84,9 +92,20 @@ class ScheduleForegroundService : Service() {
         val done: Boolean,
     )
 
+    private data class DirectState(
+        val subject: String,
+        val room: String,
+        val teacher: String,
+        val phase: String,
+        val statusLabel: String,
+        val countdownStart: Long,
+        val countdownEnd: Long,
+    )
+
     private val handler = Handler(Looper.getMainLooper())
     private val ticker = Runnable { tick() }
     private var lessons: List<Lesson> = emptyList()
+    private var directState: DirectState? = null
     private var enhanced = false
     private var remindBefore = false
     private var remindStart = false
@@ -105,12 +124,14 @@ class ScheduleForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                directState = null
                 stopTicking()
                 stopForegroundCompat(remove = true)
                 stopSelf()
                 return START_NOT_STICKY
             }
             ACTION_START -> {
+                directState = null
                 val json = intent.getStringExtra(EXTRA_LESSONS)
                 enhanced = intent.getBooleanExtra(EXTRA_ENHANCED, false)
                 remindBefore = intent.getBooleanExtra(EXTRA_REMIND_BEFORE, false)
@@ -123,7 +144,22 @@ class ScheduleForegroundService : Service() {
                 lessons = parse(json)
                 startCycle()
             }
+            ACTION_UPDATE -> {
+                lessons = emptyList()
+                enhanced = true
+                directState = DirectState(
+                    subject = intent.getStringExtra(EXTRA_SUBJECT).orEmpty(),
+                    room = intent.getStringExtra(EXTRA_ROOM).orEmpty(),
+                    teacher = intent.getStringExtra(EXTRA_TEACHER).orEmpty(),
+                    phase = intent.getStringExtra(EXTRA_PHASE).orEmpty(),
+                    statusLabel = intent.getStringExtra(EXTRA_STATUS_LABEL).orEmpty(),
+                    countdownStart = intent.getLongExtra(EXTRA_COUNTDOWN_START, 0L),
+                    countdownEnd = intent.getLongExtra(EXTRA_COUNTDOWN_END, 0L),
+                )
+                startCycle()
+            }
             else -> {
+                directState = null
                 // 进程被系统重启（null intent）：从持久化恢复今日课表与设置。
                 lessons = parse(loadLessons())
                 val p = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -177,6 +213,9 @@ class ScheduleForegroundService : Service() {
         stopTicking()
         val now = System.currentTimeMillis()
         var nextBoundary = Long.MAX_VALUE
+        directState?.let { state ->
+            if (state.countdownEnd > now) nextBoundary = state.countdownEnd
+        }
         for (l in lessons) {
             if (l.startMs > now) nextBoundary = minOf(nextBoundary, l.startMs)
             if (l.endMs > now) nextBoundary = minOf(nextBoundary, l.endMs)
@@ -198,6 +237,7 @@ class ScheduleForegroundService : Service() {
 
     private fun computeState(): NState {
         val now = System.currentTimeMillis()
+        directState?.let { return computeDirectState(it, now) }
         val cur = lessons.firstOrNull { now >= it.startMs && now < it.endMs }
         val nxt = lessons.firstOrNull { it.startMs > now }
         return when {
@@ -254,6 +294,32 @@ class ScheduleForegroundService : Service() {
                 done = true,
             )
         }
+    }
+
+    private fun computeDirectState(state: DirectState, now: Long): NState {
+        val done = now >= state.countdownEnd
+        val total = ((state.countdownEnd - state.countdownStart) / 1000)
+            .toInt()
+            .coerceAtLeast(1)
+        val elapsed = ((now - state.countdownStart) / 1000).toInt().coerceIn(0, total)
+        val details = listOf(state.phase, state.statusLabel, state.room, state.teacher)
+            .filter { it.isNotBlank() }
+            .joinToString(" · ")
+        return NState(
+            title = state.subject,
+            text = details,
+            chipText = if (done) "" else fmtClock(state.countdownEnd - now),
+            whenTarget = if (done) 0 else state.countdownEnd,
+            countUp = false,
+            segTotalSec = if (done) 0 else total,
+            segElapsedSec = if (done) 0 else elapsed,
+            iconRes = if (state.phase.contains("上课")) {
+                R.drawable.ic_stat_class
+            } else {
+                R.drawable.ic_stat_idle
+            },
+            done = done,
+        )
     }
 
     private fun line(room: String, time: String): String =

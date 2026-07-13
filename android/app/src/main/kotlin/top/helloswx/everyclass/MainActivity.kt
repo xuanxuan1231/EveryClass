@@ -25,10 +25,39 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, notifChannel)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    "isSupported" -> result.success(true)
                     "start" -> {
+                        val rawLessons = call.argument<List<*>>("lessons")
+                        if (rawLessons == null) {
+                            result.error("invalid_arguments", "lessons 必须是数组", null)
+                            return@setMethodCallHandler
+                        }
+                        val lessons = mutableListOf<Map<String, Any?>>()
+                        for (rawLesson in rawLessons) {
+                            val lesson = rawLesson as? Map<*, *>
+                            val subject = (lesson?.get("subject") as? String)?.trim()
+                            val room = (lesson?.get("room") as? String)?.trim()
+                            val teacher = (lesson?.get("teacher") as? String)?.trim()
+                            val period = lesson?.get("period") as? Number
+                            val startMs = lesson?.get("startMs") as? Number
+                            val endMs = lesson?.get("endMs") as? Number
+                            if (subject.isNullOrEmpty() || room == null || teacher == null ||
+                                period == null || startMs == null || endMs == null ||
+                                endMs.toLong() <= startMs.toLong()
+                            ) {
+                                result.error("invalid_arguments", "课程字段不完整或时间区间无效", null)
+                                return@setMethodCallHandler
+                            }
+                            lessons += mapOf(
+                                "subject" to subject,
+                                "room" to room,
+                                "teacher" to teacher,
+                                "period" to period.toInt(),
+                                "startMs" to startMs.toLong(),
+                                "endMs" to endMs.toLong(),
+                            )
+                        }
                         ensureNotificationPermission()
-                        @Suppress("UNCHECKED_CAST")
-                        val lessons = call.argument<List<Map<String, Any?>>>("lessons")
                         val enhanced = call.argument<Boolean>("enhancedCountdown") ?: false
                         val intent = Intent(this, ScheduleForegroundService::class.java).apply {
                             action = ScheduleForegroundService.ACTION_START
@@ -52,14 +81,43 @@ class MainActivity : FlutterActivity() {
                             )
                         }
                         ContextCompat.startForegroundService(this, intent)
-                        result.success(null)
+                        result.success(true)
+                    }
+                    "update" -> {
+                        val subject = call.argument<String>("subject")?.trim()
+                        val room = call.argument<String>("room")?.trim()
+                        val teacher = call.argument<String>("teacher")?.trim()
+                        val phase = call.argument<String>("phase")?.trim()
+                        val statusLabel = call.argument<String>("statusLabel")?.trim()
+                        val startEpochMs = call.argument<Number>("countdownStartEpochMs")?.toLong()
+                        val endEpochMs = call.argument<Number>("countdownEndEpochMs")?.toLong()
+                        if (subject.isNullOrEmpty() || room == null || teacher == null ||
+                            phase.isNullOrEmpty() || statusLabel.isNullOrEmpty() ||
+                            startEpochMs == null || endEpochMs == null || endEpochMs <= startEpochMs
+                        ) {
+                            result.error("invalid_arguments", "实时通知展示状态不完整或时间区间无效", null)
+                            return@setMethodCallHandler
+                        }
+                        ensureNotificationPermission()
+                        val intent = Intent(this, ScheduleForegroundService::class.java).apply {
+                            action = ScheduleForegroundService.ACTION_UPDATE
+                            putExtra(ScheduleForegroundService.EXTRA_SUBJECT, subject)
+                            putExtra(ScheduleForegroundService.EXTRA_ROOM, room)
+                            putExtra(ScheduleForegroundService.EXTRA_TEACHER, teacher)
+                            putExtra(ScheduleForegroundService.EXTRA_PHASE, phase)
+                            putExtra(ScheduleForegroundService.EXTRA_STATUS_LABEL, statusLabel)
+                            putExtra(ScheduleForegroundService.EXTRA_COUNTDOWN_START, startEpochMs)
+                            putExtra(ScheduleForegroundService.EXTRA_COUNTDOWN_END, endEpochMs)
+                        }
+                        ContextCompat.startForegroundService(this, intent)
+                        result.success(true)
                     }
                     "stop" -> {
                         val intent = Intent(this, ScheduleForegroundService::class.java).apply {
                             action = ScheduleForegroundService.ACTION_STOP
                         }
                         startService(intent)
-                        result.success(null)
+                        result.success(true)
                     }
                     else -> result.notImplemented()
                 }

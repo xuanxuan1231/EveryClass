@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 import '../data/classisland_importer.dart';
 import '../platform/file_import.dart';
+import '../platform/live_notification.dart';
 import '../util/format.dart';
 
 /// 设置：导入档案、学期起始日、实时通知与课程提醒、按科目填教室。
@@ -60,6 +62,15 @@ class SettingsScreen extends StatelessWidget {
             value: app.settings.enhancedCountdown,
             onChanged: (v) => app.setEnhancedCountdown(v),
           ),
+          if (kDebugMode) ...[
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.bug_report_outlined),
+              title: const Text('开发：预览实时活动'),
+              subtitle: const Text('启动五分钟演示课程，用于检查锁屏和灵动岛显示'),
+              onTap: () => _runLiveActivityDemo(context),
+            ),
+          ],
           const Divider(height: 1),
           _sectionTitle(context, '上课提醒'),
           SwitchListTile(
@@ -292,6 +303,15 @@ class SettingsScreen extends StatelessWidget {
   void _snack(BuildContext context, String msg) {
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _runLiveActivityDemo(BuildContext context) async {
+    final started = await LiveNotification.runDemo();
+    if (!context.mounted) return;
+    _snack(
+      context,
+      started ? '已启动演示实时活动' : '当前设备不支持或未启用实时活动',
+    );
   }
 }
 
