@@ -76,6 +76,42 @@ void main() {
     });
   });
 
+  test('start 下发课程提醒设置', () async {
+    final day = DaySchedule(
+      day: DateTime(2026, 7, 11),
+      lessons: const [
+        ResolvedLesson(
+          subjectId: 'math',
+          subject: Subject(name: '数学', teacherName: '李老师'),
+          room: 'A101',
+          period: 1,
+          start: Duration(hours: 8),
+          end: Duration(hours: 8, minutes: 45),
+        ),
+      ],
+    );
+
+    expect(
+      await LiveNotification.start(
+        day,
+        enhancedCountdown: true,
+        remindBefore: true,
+        remindStart: true,
+        remindEnd: true,
+        remindLeadSeconds: 180,
+      ),
+      isTrue,
+    );
+
+    expect(calls.single.method, 'start');
+    final arguments = calls.single.arguments! as Map<Object?, Object?>;
+    expect(arguments['enhancedCountdown'], isTrue);
+    expect(arguments['remindBefore'], isTrue);
+    expect(arguments['remindStart'], isTrue);
+    expect(arguments['remindEnd'], isTrue);
+    expect(arguments['remindLeadSeconds'], 180);
+  });
+
   test('演示状态以当前时间生成且只走 update', () async {
     final now = DateTime(2026, 7, 11, 9, 30);
 

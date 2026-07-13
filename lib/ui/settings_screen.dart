@@ -8,7 +8,7 @@ import '../platform/file_import.dart';
 import '../platform/live_notification.dart';
 import '../util/format.dart';
 
-/// 设置：导入档案、学期起始日、按科目填教室、实时通知开关。
+/// 设置：导入档案、学期起始日、实时通知与课程提醒、按科目填教室。
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -22,15 +22,15 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('设置'), centerTitle: false),
       body: ListView(
         children: [
-          _sectionTitle(context, '课表数据'),
+          _sectionTitle(context, '课表'),
           ListTile(
             leading: const Icon(Icons.file_download_outlined),
             title: const Text('导入 ClassIsland 档案'),
             subtitle: Text(
               app.hasSchedule
-                  ? '已导入：${app.profile.subjects.length} 门科目 · ${app.profile.classPlans.length} 张课表'
+                  ? '${app.profile.subjects.length} 门科目 · ${app.profile.classPlans.length} 张课表'
                   : app.profile.subjects.isNotEmpty
-                      ? '已导入 ${app.profile.subjects.length} 门科目（暂无课表定义）'
+                      ? '${app.profile.subjects.length} 门科目 · 暂无课表'
                       : '未导入',
             ),
             trailing: const Icon(Icons.chevron_right),
@@ -43,29 +43,24 @@ class SettingsScreen extends StatelessWidget {
             title: const Text('学期开始日期'),
             subtitle: Text(
               app.settings.termStart == null
-                  ? '未设置（不区分单双周）'
-                  : '${ymd(app.settings.termStart!)}　·　用于计算轮换周',
+                  ? '未设置 · 不区分单双周'
+                  : '${ymd(app.settings.termStart!)} · 用于计算轮换周',
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _pickTermStart(context, app),
           ),
           const Divider(height: 1),
-          _sectionTitle(context, '实时通知'),
-          SwitchListTile(
-            secondary: const Icon(Icons.notifications_active_outlined),
-            title: const Text('启用实时通知'),
-            subtitle: const Text('在锁屏/状态栏常驻显示当前与下一节课'),
-            value: app.settings.notificationEnabled,
-            onChanged: (v) => app.setNotificationEnabled(v),
+          _sectionTitle(
+            context,
+            '实时通知',
+            note: '在锁屏与状态栏常驻显示当前与下一节课',
           ),
           SwitchListTile(
             secondary: const Icon(Icons.timer_outlined),
             title: const Text('实时倒计时'),
-            subtitle: const Text('开：逐秒跳动（较耗电）；关：显示分钟数'),
+            subtitle: const Text('逐秒跳动，更精确但更耗电'),
             value: app.settings.enhancedCountdown,
-            onChanged: app.settings.notificationEnabled
-                ? (v) => app.setEnhancedCountdown(v)
-                : null,
+            onChanged: (v) => app.setEnhancedCountdown(v),
           ),
           if (kDebugMode) ...[
             const Divider(height: 1),
@@ -77,11 +72,39 @@ class SettingsScreen extends StatelessWidget {
             ),
           ],
           const Divider(height: 1),
-          _sectionTitle(context, '走班教室（按科目）'),
+          _sectionTitle(context, '上课提醒'),
+          SwitchListTile(
+            secondary: const Icon(Icons.upcoming_outlined),
+            title: const Text('即将上课'),
+            subtitle: Text('课前 ${leadCn(app.settings.remindLeadSeconds)}'),
+            value: app.settings.remindBefore,
+            onChanged: (v) => app.setRemindBefore(v),
+          ),
+          _LeadTimeSlider(
+            seconds: app.settings.remindLeadSeconds,
+            enabled: app.settings.remindBefore,
+            onChanged: (v) => app.setRemindLeadSeconds(v),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.play_circle_outline),
+            title: const Text('上课'),
+            subtitle: const Text('每节课开始时'),
+            value: app.settings.remindStart,
+            onChanged: (v) => app.setRemindStart(v),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.stop_circle_outlined),
+            title: const Text('下课'),
+            subtitle: const Text('每节课结束时'),
+            value: app.settings.remindEnd,
+            onChanged: (v) => app.setRemindEnd(v),
+          ),
+          const Divider(height: 1),
+          _sectionTitle(context, '走班教室'),
           if (subjects.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('导入档案后，可在此为每门科目填写走班教室。'),
+              child: Text('导入档案后，可为每门科目填写走班教室。'),
             )
           else
             for (final e in subjects)
@@ -116,14 +139,30 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _sectionTitle(BuildContext context, String text) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-        child: Text(
-          text,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.bold,
+  Widget _sectionTitle(BuildContext context, String text, {String? note}) =>
+      Padding(
+        padding: EdgeInsets.fromLTRB(16, 20, 16, note == null ? 8 : 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              text,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            if (note != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  note,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                ),
               ),
+          ],
         ),
       );
 
@@ -272,6 +311,72 @@ class SettingsScreen extends StatelessWidget {
     _snack(
       context,
       started ? '已启动演示实时活动' : '当前设备不支持或未启用实时活动',
+    );
+  }
+}
+
+/// 「提前量」滑块：30 秒 – 10 分钟，30 秒粒度。
+///
+/// 拖动时只更新本地值（标签实时跟随），松手（[Slider.onChangeEnd]）才落库，
+/// 避免每一帧都触发 [AppState] 刷新常驻通知。
+class _LeadTimeSlider extends StatefulWidget {
+  final int seconds;
+  final bool enabled;
+  final ValueChanged<int> onChanged;
+
+  const _LeadTimeSlider({
+    required this.seconds,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  State<_LeadTimeSlider> createState() => _LeadTimeSliderState();
+}
+
+class _LeadTimeSliderState extends State<_LeadTimeSlider> {
+  static const double _min = 30; // 30 秒
+  static const double _max = 600; // 10 分钟
+
+  // 钳到 30–600 以满足 Slider 约束（兼容历史上超区间的旧值）。
+  late double _value = widget.seconds.clamp(30, 600).toDouble();
+
+  @override
+  void didUpdateWidget(_LeadTimeSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 落库后新值回流时同步本地滑块。
+    if (widget.seconds != oldWidget.seconds) {
+      _value = widget.seconds.clamp(30, 600).toDouble();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final valueColor =
+        widget.enabled ? theme.colorScheme.primary : theme.colorScheme.outline;
+    return ListTile(
+      enabled: widget.enabled,
+      leading: const SizedBox(width: 24),
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text('提前量'),
+          Text(
+            leadCn(_value.round()),
+            style: TextStyle(color: valueColor, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+      subtitle: Slider(
+        value: _value,
+        min: _min,
+        max: _max,
+        divisions: 19, // 30 秒一档：(600 - 30) / 30
+        label: leadCn(_value.round()),
+        onChanged: widget.enabled ? (v) => setState(() => _value = v) : null,
+        onChangeEnd: widget.enabled ? (v) => widget.onChanged(v.round()) : null,
+      ),
     );
   }
 }

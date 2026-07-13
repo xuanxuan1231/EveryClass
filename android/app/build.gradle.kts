@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.everyclass"
+    namespace = "top.helloswx.everyclass"
     // Android 16 (API 36) 起支持 Live Updates（Notification.ProgressStyle /
     // FLAG_PROMOTED_ONGOING），低版本自动回退到普通常驻通知。
     compileSdk = 36
@@ -17,7 +17,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.everyclass"
+        applicationId = "top.helloswx.everyclass"
         // 通知渠道需要 API 26。
         minSdk = 26
         targetSdk = 36

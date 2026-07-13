@@ -13,11 +13,25 @@ class LiveNotification {
   );
 
   /// 下发某天的课表并启动/更新常驻实时通知。
+  ///
+  /// 提醒开关（[remindBefore]/[remindStart]/[remindEnd] 与 [remindLeadSeconds]）
+  /// 随课表一起下发：常驻通知的前台服务在课程边界弹出独立的一次性提醒。
   static Future<bool> isSupported() => _safe('isSupported', null);
 
-  static Future<bool> start(DaySchedule day, {bool enhancedCountdown = false}) {
+  static Future<bool> start(
+    DaySchedule day, {
+    bool enhancedCountdown = false,
+    bool remindBefore = false,
+    bool remindStart = false,
+    bool remindEnd = false,
+    int remindLeadSeconds = 300,
+  }) {
     return _safe('start', {
       'enhancedCountdown': enhancedCountdown,
+      'remindBefore': remindBefore,
+      'remindStart': remindStart,
+      'remindEnd': remindEnd,
+      'remindLeadSeconds': remindLeadSeconds,
       'lessons': day.lessons.map(_encode).toList(),
     });
   }

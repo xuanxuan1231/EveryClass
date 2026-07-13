@@ -23,3 +23,12 @@ String fmtCountdown(Duration d) {
   final ss = d.inSeconds.remainder(60).toString().padLeft(2, '0');
   return h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
 }
+
+/// 提前量（秒）→ 中文时长：整分「N 分钟」，含秒「N 分 S 秒」，不足一分「S 秒」。
+String leadCn(int seconds) {
+  final m = seconds ~/ 60;
+  final s = seconds % 60;
+  if (m == 0) return '$s 秒';
+  if (s == 0) return '$m 分钟';
+  return '$m 分 $s 秒';
+}

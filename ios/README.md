@@ -15,7 +15,7 @@ EveryClass 的 iOS 实时通知由 Runner 中的 Flutter 插件和内嵌的 `Cla
 | 方法 | 参数 |
 | --- | --- |
 | `isSupported` | 无参数 |
-| `start` | `{ enhancedCountdown, lessons }`；每节课包含 `subject`、`room`、`teacher`、`period`、`startMs`、`endMs`，其中时间是距当天零点的毫秒数 |
+| `start` | `{ enhancedCountdown, remindBefore, remindStart, remindEnd, remindLeadSeconds, lessons }`；每节课包含 `subject`、`room`、`teacher`、`period`、`startMs`、`endMs`，其中时间是距当天零点的毫秒数 |
 | `update` | `subject`、`room`、`teacher`、`phase`、`statusLabel`、`countdownStartEpochMs`、`countdownEndEpochMs` |
 | `stop` | 无参数；重复调用也返回成功 |
 
@@ -25,7 +25,7 @@ EveryClass 的 iOS 实时通知由 Runner 中的 Flutter 插件和内嵌的 `Cla
 
 需要 macOS、Xcode、Flutter stable 和 iOS 16.2 以上的模拟器或设备。Runner 仍支持原有 iOS 13.0 最低版本；低于 iOS 16.2 的系统可以启动 App，但 `isSupported` 返回 `false`，不会降级为普通本地通知。
 
-使用 Xcode 时打开 `ios/Runner.xcworkspace`。在 Runner 和 ClassWidget 两个 target 的 Signing & Capabilities 中选择同一个开发团队，并确保 ClassWidget 的 Bundle ID 是 Runner Bundle ID 的子标识。仓库默认值分别是 `com.example.everyclass` 和 `com.example.everyclass.ClassWidget`。当前实现不需要 App Group。
+使用 Xcode 时打开 `ios/Runner.xcworkspace`。在 Runner 和 ClassWidget 两个 target 的 Signing & Capabilities 中选择同一个开发团队，并确保 ClassWidget 的 Bundle ID 是 Runner Bundle ID 的子标识。仓库默认值分别是 `top.helloswx.everyclass` 和 `top.helloswx.everyclass.ClassWidget`。当前实现不需要 App Group。
 
 常规检查与构建：
 
