@@ -89,17 +89,20 @@ class ScheduleService {
     // 1) 本日是否有以「原发生日期=本日」为键的补课（added）。
     final addedHere = meeting.overrides[dateKey];
     if (addedHere != null && addedHere.added) {
-      return _build(course, meeting, day, weekday, override: addedHere);
+      return _build(course, meeting, day, weekday,
+          override: addedHere, originDate: dateKey);
     }
 
     // 2) 别处调课搬到了本日？扫描所有 movedToDate==本日 的例外。
     for (final entry in meeting.overrides.entries) {
       final ov = entry.value;
+      if (ov.excluded) continue; // 调课后又停课：整次取消，目标日也不出现
       if (ov.movedToDate == dateKey) {
         // 用「原发生日期」的星期取默认作息，但排到本日。
         final origin = DateTime.tryParse(entry.key);
         final originWeekday = origin?.weekday ?? weekday;
-        return _build(course, meeting, day, originWeekday, override: ov);
+        return _build(course, meeting, day, originWeekday,
+            override: ov, originDate: entry.key);
       }
     }
 
@@ -113,9 +116,10 @@ class ScheduleService {
       if (ov.movedToDate != null && ov.movedToDate != dateKey) {
         return null; // 调走了，本日不再有（会在第 2 步于目标日生成）
       }
-      return _build(course, meeting, day, weekday, override: ov);
+      return _build(course, meeting, day, weekday,
+          override: ov, originDate: dateKey);
     }
-    return _build(course, meeting, day, weekday);
+    return _build(course, meeting, day, weekday, originDate: dateKey);
   }
 
   /// 解析时刻 + 教室 + 教师，产出未编号的 ResolvedLesson；解析不出时刻则 null。
@@ -125,6 +129,7 @@ class ScheduleService {
     DateTime day,
     int weekday, {
     OccurrenceOverride? override,
+    String originDate = '',
   }) {
     final customStart = override?.customStart ?? meeting.customStart;
     final customEnd = override?.customEnd ?? meeting.customEnd;
@@ -153,6 +158,7 @@ class ScheduleService {
 
     final room = override?.location ?? meeting.location ?? course.defaultLocation;
     final teacher = override?.teacher ?? meeting.teacher ?? course.teacher;
+    final description = override?.description ?? course.description;
 
     return ResolvedLesson(
       subjectId: course.id,
@@ -165,6 +171,9 @@ class ScheduleService {
       startPeriod: startPeriod,
       endPeriod: endPeriod,
       color: course.color,
+      description: description,
+      meetingId: meeting.id,
+      originDate: originDate,
     );
   }
 
@@ -187,6 +196,9 @@ class ScheduleService {
         startPeriod: l.startPeriod,
         endPeriod: l.endPeriod,
         color: l.color,
+        description: l.description,
+        meetingId: l.meetingId,
+        originDate: l.originDate,
       );
 
   /// 当前正在上的课；无则 null。

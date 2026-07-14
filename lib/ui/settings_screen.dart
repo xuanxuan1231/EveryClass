@@ -7,8 +7,11 @@ import '../data/classisland_importer.dart';
 import '../platform/file_import.dart';
 import '../platform/live_notification.dart';
 import '../util/format.dart';
+import 'schedule/calendar_edit_screen.dart';
+import 'schedule/calendars_screen.dart';
 
-/// 设置：导入档案、学期起始日、实时通知与课程提醒、按科目填教室。
+/// 设置：课表管理与导入、实时通知与课程提醒、按科目填教室。
+/// 学期开始日期在「课表管理」的课表编辑页设置。
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -18,9 +21,6 @@ class SettingsScreen extends StatelessWidget {
     final cal = app.calendar;
     final courses = (cal?.courses.values.toList() ?? [])
       ..sort((a, b) => a.title.compareTo(b.title));
-    final courseCount = courses.length;
-    final scheduledCount =
-        courses.where((c) => c.meetings.isNotEmpty).length;
 
     return Scaffold(
       appBar: AppBar(title: const Text('设置'), centerTitle: false),
@@ -28,30 +28,26 @@ class SettingsScreen extends StatelessWidget {
         children: [
           _sectionTitle(context, '课表'),
           ListTile(
+            leading: const Icon(Icons.calendar_month_outlined),
+            title: const Text('课表管理'),
+            subtitle: Text(
+              cal == null
+                  ? '还没有课表 · 可新建或导入'
+                  : '${app.calendars.length} 张课表 · 使用中：${calendarDisplayName(cal)}',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const CalendarsScreen(),
+              ),
+            ),
+          ),
+          ListTile(
             leading: const Icon(Icons.file_download_outlined),
             title: const Text('导入 ClassIsland 档案'),
-            subtitle: Text(
-              app.hasSchedule
-                  ? '$courseCount 门课程 · $scheduledCount 门已排课'
-                  : courseCount > 0
-                      ? '$courseCount 门课程 · 暂无排课'
-                      : '未导入',
-            ),
+            subtitle: const Text('将档案转换为一张新课表，不影响已有课表'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _showImportSheet(context, app),
-          ),
-          const Divider(height: 1),
-          _sectionTitle(context, '学期'),
-          ListTile(
-            leading: const Icon(Icons.calendar_today_outlined),
-            title: const Text('学期第一周'),
-            subtitle: Text(
-              app.firstWeekStart == null
-                  ? '未设置 · 不区分周次 / 单双周'
-                  : '${ymd(app.firstWeekStart!)} · 用于计算周次与轮换',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _pickFirstWeekStart(context, app),
           ),
           const Divider(height: 1),
           _sectionTitle(
@@ -245,24 +241,14 @@ class SettingsScreen extends StatelessWidget {
     try {
       await app.importFromText(text);
       if (context.mounted) {
-        _snack(context, '导入成功：${app.calendar?.courses.length ?? 0} 门课程');
+        _snack(
+          context,
+          '已导入为新课表：${app.calendar?.courses.length ?? 0} 门课程',
+        );
       }
     } on ImportException catch (e) {
       if (context.mounted) _snack(context, '导入失败：${e.message}');
     }
-  }
-
-  // ---- 学期第一周 ----
-
-  Future<void> _pickFirstWeekStart(BuildContext context, AppState app) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: app.firstWeekStart ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-      helpText: '选择学期第一周内任意一天',
-    );
-    if (picked != null) await app.setFirstWeekStart(picked);
   }
 
   // ---- 教室编辑 ----

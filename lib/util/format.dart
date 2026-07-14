@@ -5,6 +5,12 @@ const List<String> _weekdayCn = ['一', '二', '三', '四', '五', '六', '日'
 
 String weekdayCn(DateTime d) => '周${_weekdayCn[d.weekday - 1]}';
 
+/// 星期数字（1–7，周一=1，对齐 `DateTime.weekday`）→ 「周一」。
+String weekdayCnOf(int weekday) => '周${_weekdayCn[(weekday - 1) % 7]}';
+
+/// 星期的单字（一/二/…/日），用于日视图周条与周视图表头。
+String weekdayShortCn(DateTime d) => _weekdayCn[d.weekday - 1];
+
 String ymd(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 

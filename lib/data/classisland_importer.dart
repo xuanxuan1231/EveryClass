@@ -41,11 +41,17 @@ class ClassIslandImporter {
     return profile;
   }
 
-  /// 解析并转换为新模型的 [Database]。
-  static Database parse(String jsonText, {DateTime? firstWeekStart}) {
+  /// 解析并转换为新模型的 [Database]；[calendarId] 指定生成课表的 ID
+  /// （多课表下由调用方传入唯一 ID，避免覆盖已有课表）。
+  static Database parse(
+    String jsonText, {
+    String? calendarId,
+    DateTime? firstWeekStart,
+  }) {
     final profile = parseProfile(jsonText);
     return ClassIslandConverter.toDatabase(
       profile,
+      calendarId: calendarId ?? 'imported',
       firstWeekStart: firstWeekStart,
     );
   }

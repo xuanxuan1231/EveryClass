@@ -3,17 +3,21 @@ import 'package:everyclass/data/classisland_importer.dart';
 import 'package:everyclass/data/database_repository.dart';
 import 'package:everyclass/models/database.dart';
 import 'package:everyclass/services/settings_service.dart';
-import 'package:everyclass/ui/today_screen.dart';
+import 'package:everyclass/ui/schedule/week_view_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const _populated = '''
+/// 周一到周日每天都有一节「语文」，一周恰好 7 张课程卡。
+final _populated = '''
 {
   "Subjects": {"s":{"Name":"语文","AttachedObjects":{"everyclass.room":"A101"}}},
   "TimeLayouts": {"t":{"Name":"t","Layouts":[{"StartTime":"08:00:00","EndTime":"08:45:00","TimeType":0}]}},
-  "ClassPlans": {"p":{"Name":"周一","TimeLayoutId":"t","TimeRule":{"WeekDay":1,"WeekCountDiv":0},"Classes":[{"SubjectId":"s"}],"IsEnabled":true}}
+  "ClassPlans": {${[
+  for (var w = 1; w <= 7; w++)
+    '"p$w":{"Name":"d$w","TimeLayoutId":"t","TimeRule":{"WeekDay":$w,"WeekCountDiv":0},"Classes":[{"SubjectId":"s"}],"IsEnabled":true}'
+].join(',')}}
 }
 ''';
 
@@ -36,24 +40,45 @@ Future<AppState> _appWith(Database db) async {
 
 Widget _wrap(AppState app) => ChangeNotifierProvider<AppState>.value(
       value: app,
-      child: const MaterialApp(home: TodayScreen()),
+      child: const MaterialApp(home: WeekViewScreen()),
     );
+
+DateTime _mondayOfThisWeek() {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day - (now.weekday - 1));
+}
 
 void main() {
   testWidgets('空数据库显示导入提示', (tester) async {
     final app = await _appWith(Database.empty());
     await tester.pumpWidget(_wrap(app));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.text('还没有课表'), findsOneWidget);
-    await tester.pumpWidget(const SizedBox()); // 释放周期性 Timer
   });
 
-  testWidgets('有课表渲染今日页且不崩溃', (tester) async {
-    final app = await _appWith(ClassIslandImporter.parse(_populated));
+  testWidgets('渲染整周课程与周序号', (tester) async {
+    final app = await _appWith(
+      ClassIslandImporter.parse(_populated,
+          firstWeekStart: _mondayOfThisWeek()),
+    );
     await tester.pumpWidget(_wrap(app));
-    await tester.pump();
-    expect(find.text('今日课表'), findsOneWidget);
-    expect(find.text('还没有课表'), findsNothing);
-    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+    expect(find.text('第 1 周'), findsOneWidget);
+    expect(find.text('语文'), findsNWidgets(7));
+  });
+
+  testWidgets('左滑翻到下一周', (tester) async {
+    final app = await _appWith(
+      ClassIslandImporter.parse(_populated,
+          firstWeekStart: _mondayOfThisWeek()),
+    );
+    await tester.pumpWidget(_wrap(app));
+    await tester.pumpAndSettle();
+
+    await tester.fling(find.byType(PageView), const Offset(-400, 0), 1000);
+    await tester.pumpAndSettle();
+
+    expect(find.text('第 2 周'), findsOneWidget);
+    expect(find.text('语文'), findsNWidgets(7));
   });
 }

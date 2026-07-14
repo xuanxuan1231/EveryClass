@@ -25,6 +25,9 @@ class OccurrenceOverride {
   final String? location;
   final String? teacher;
 
+  /// 覆盖本次备注（null 沿用 `CourseEvent.description`，'' 表示本次清空）。
+  final String? description;
+
   const OccurrenceOverride({
     this.excluded = false,
     this.added = false,
@@ -35,6 +38,7 @@ class OccurrenceOverride {
     this.customEnd,
     this.location,
     this.teacher,
+    this.description,
   });
 
   factory OccurrenceOverride.fromJson(Map<String, dynamic> json) {
@@ -50,6 +54,7 @@ class OccurrenceOverride {
       customEnd: optStr(pick(json, ['customEnd', 'CustomEnd'])),
       location: optStr(pick(json, ['location', 'Location'])),
       teacher: optStr(pick(json, ['teacher', 'Teacher'])),
+      description: optStr(pick(json, ['description', 'Description'])),
     );
   }
 
@@ -63,5 +68,6 @@ class OccurrenceOverride {
         if (customEnd != null) 'customEnd': customEnd,
         if (location != null) 'location': location,
         if (teacher != null) 'teacher': teacher,
+        if (description != null) 'description': description,
       };
 }

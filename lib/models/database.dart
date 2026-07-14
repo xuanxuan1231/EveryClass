@@ -51,6 +51,18 @@ class Database {
     );
   }
 
+  /// 删除一张课表；若删的是选中项（或选中 ID 已失效），改选剩余的第一张，
+  /// 没有剩余则清空选中。未命中时原样返回。
+  Database withoutCalendar(String id) {
+    if (!calendars.containsKey(id)) return this;
+    final next = Map<String, Calendar>.from(calendars)..remove(id);
+    var sel = selectedCalendarId;
+    if (!next.containsKey(sel)) {
+      sel = next.isEmpty ? '' : next.keys.first;
+    }
+    return copyWith(calendars: next, selectedCalendarId: sel);
+  }
+
   factory Database.fromJson(Map<String, dynamic> json) {
     return Database(
       schemaVersion: asInt(

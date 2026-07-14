@@ -2,7 +2,11 @@ import 'package:everyclass/models/subject.dart';
 import 'package:everyclass/models/time_layout.dart';
 import 'package:everyclass/models/week_rule.dart';
 import 'package:everyclass/models/alert.dart';
+import 'package:everyclass/models/calendar.dart';
+import 'package:everyclass/models/course_event.dart';
+import 'package:everyclass/models/database.dart';
 import 'package:everyclass/models/meeting.dart';
+import 'package:everyclass/models/occurrence_override.dart';
 import 'package:everyclass/util/coerce.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -150,6 +154,101 @@ void main() {
       expect(json['startPeriod'], 1);
       expect(json['endPeriod'], 2);
       expect(json.containsKey('customStart'), false);
+    });
+  });
+
+  group('OccurrenceOverride', () {
+    test('description 序列化往返（null 不写、空串保留）', () {
+      const ov = OccurrenceOverride(teacher: '王老师', description: '今天测验');
+      final back = OccurrenceOverride.fromJson(ov.toJson());
+      expect(back.teacher, '王老师');
+      expect(back.description, '今天测验');
+
+      // '' = 本次显式清空，必须与 null（继承课程默认）区分开。
+      const cleared = OccurrenceOverride(description: '');
+      expect(OccurrenceOverride.fromJson(cleared.toJson()).description, '');
+
+      const none = OccurrenceOverride(excluded: true);
+      expect(none.toJson().containsKey('description'), false);
+      expect(OccurrenceOverride.fromJson(none.toJson()).description, isNull);
+    });
+  });
+
+  group('Calendar', () {
+    Calendar calWith(List<WeekRule> rules) => Calendar(
+          id: 'cal',
+          courses: {
+            for (var i = 0; i < rules.length; i++)
+              'c$i': CourseEvent(
+                id: 'c$i',
+                meetings: [Meeting(id: 'm$i', weekday: 1, weeks: rules[i])],
+              ),
+          },
+        );
+
+    test('weekCount：取全部规则引用的最大周（范围上界与显式列表）', () {
+      expect(calWith([const WeekRule(fromWeek: 1, toWeek: 16)]).weekCount, 16);
+      expect(
+        calWith([
+          const WeekRule(fromWeek: 1, toWeek: 16),
+          const WeekRule(include: [1, 3, 25]),
+        ]).weekCount,
+        25,
+      );
+    });
+
+    test('weekCount：无课程或规则全部无上界时兜底默认周数', () {
+      expect(const Calendar(id: 'cal').weekCount, Calendar.defaultWeekCount);
+      expect(
+        calWith([WeekRule.every, const WeekRule(fromWeek: 3)]).weekCount,
+        Calendar.defaultWeekCount,
+      );
+    });
+
+    test('note/color 经 JSON 往返与 copyWith 保持', () {
+      const cal = Calendar(id: 'cal', name: '春', color: '#FF0000', note: '大二下');
+      final again = Calendar.fromJson(cal.toJson());
+      expect(again.color, '#FF0000');
+      expect(again.note, '大二下');
+
+      expect(cal.copyWith(name: '秋').note, '大二下'); // 未传字段保持
+      expect(cal.copyWith(name: '秋').color, '#FF0000');
+      final cleared = cal.copyWith(color: '', note: '');
+      expect(cleared.color, '');
+      expect(cleared.note, '');
+    });
+  });
+
+  group('Database', () {
+    Database twoCals() => const Database(
+          selectedCalendarId: 'a',
+          calendars: {
+            'a': Calendar(id: 'a', name: 'A'),
+            'b': Calendar(id: 'b', name: 'B'),
+          },
+        );
+
+    test('withoutCalendar：删除未选中的，选中不变', () {
+      final db = twoCals().withoutCalendar('b');
+      expect(db.calendars.keys, ['a']);
+      expect(db.selectedCalendarId, 'a');
+    });
+
+    test('withoutCalendar：删除选中的，改选剩余第一张', () {
+      final db = twoCals().withoutCalendar('a');
+      expect(db.calendars.keys, ['b']);
+      expect(db.selectedCalendarId, 'b');
+      expect(db.selected!.name, 'B');
+    });
+
+    test('withoutCalendar：删到空与未命中', () {
+      final empty = twoCals().withoutCalendar('a').withoutCalendar('b');
+      expect(empty.isEmpty, isTrue);
+      expect(empty.selectedCalendarId, '');
+      expect(empty.selected, isNull);
+
+      final same = twoCals().withoutCalendar('nope');
+      expect(same.calendars.length, 2);
     });
   });
 }

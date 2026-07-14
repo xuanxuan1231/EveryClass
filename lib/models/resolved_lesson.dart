@@ -26,6 +26,16 @@ class ResolvedLesson {
   /// 课程颜色（`#RRGGBB`，可空）。
   final String color;
 
+  /// 已解析的本次备注（例外 > 课程默认；可空）。
+  final String description;
+
+  /// 来源 `Meeting.id`（可空，兼容旧调用），供「编辑本次/本次及以后」定位时段。
+  final String meetingId;
+
+  /// 这次课的「原发生日期」`yyyy-MM-dd`（即 `Meeting.overrides` 的键；未被
+  /// 调课时就是展示当天）。可空，兼容旧调用。
+  final String originDate;
+
   const ResolvedLesson({
     required this.subjectId,
     required this.subjectName,
@@ -37,6 +47,9 @@ class ResolvedLesson {
     this.startPeriod = 0,
     this.endPeriod = 0,
     this.color = '',
+    this.description = '',
+    this.meetingId = '',
+    this.originDate = '',
   });
 
   /// 结合具体日期得到开始/结束的绝对时间。

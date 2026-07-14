@@ -17,12 +17,12 @@ lib/
                + ClassIsland 导入器 & 转换器
   services/    调度引擎（今日/当前/下一节、周次/单双周轮换、冲突、空闲）+ 设置
   platform/    实时通知 & 文件导入的 MethodChannel 封装
-  ui/          今日课表、设置页
+  ui/          日/周视图、课表管理、课程管理、设置页
 android/app/src/main/kotlin/...  ScheduleForegroundService（实时通知）
 ios/Runner + ios/ClassWidget      Live Activity（见 ios/README.md）
 ```
 
-数据模型说明：课表按学期存储（一个 `Calendar` = 一学期，自包含作息/课程/例外）；用户只需指定**学期第一周**（`Calendar.firstWeekStart`），无需填学期起止。每条排课（`Meeting`）的时间二选一——引用作息表**第 N 节**（跟随作息，改一处全动）或**自定义时刻**（自由，可落在节次网格外）。走班教室存于 `CourseEvent.defaultLocation`（`Meeting.location` / 例外可覆盖）。星期为 1–7（周一=1）。参考：仓库根的 `sample_schedule.json`、`Default.json`。
+数据模型说明：课表按学期存储（一个 `Calendar` = 一学期，自包含作息/课程/例外）；一台设备可存多张课表，「课表管理」支持新建/编辑（名称、颜色、开始日期、备注）/删除/切换使用中的课表，导入 ClassIsland 档案即新增一张；周数由课程排课的周次自动推导（`Calendar.weekCount`），不可手填。用户只需指定**学期第一周**（`Calendar.firstWeekStart`），无需填学期起止。每条排课（`Meeting`）的时间二选一——引用作息表**第 N 节**（跟随作息，改一处全动）或**自定义时刻**（自由，可落在节次网格外）。走班教室存于 `CourseEvent.defaultLocation`（`Meeting.location` / 例外可覆盖）。星期为 1–7（周一=1）。参考：仓库根的 `sample_schedule.json`、`Default.json`。
 
 ## 开发
 
@@ -42,7 +42,7 @@ flutter build apk --debug
 1. 在 ClassIsland 导出档案 JSON。
 2. App「设置」→ 导入 ClassIsland 档案（选文件或粘贴）。
 3. 按科目填写走班教室（ClassIsland 不含教室）。
-4. 设置学期开始日期（用于单双周轮换）。
+4. 在「课表管理」编辑课表，设置学期开始日期（用于单双周轮换）。
 5. 打开「实时通知」。
 
 ## 现状

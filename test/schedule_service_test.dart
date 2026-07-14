@@ -229,6 +229,36 @@ void main() {
       );
     });
 
+    test('本次备注：override 优先于课程默认', () {
+      final svc = ScheduleService(_nativeCalendar(
+        overrides: const {
+          '2026-07-06': OccurrenceOverride(description: '今天测验'),
+        },
+      ));
+      expect(svc.scheduleFor(monday).lessons.single.description, '今天测验');
+      // 无 override 的下周一回落课程默认（此处课程默认为空）。
+      expect(
+        svc
+            .scheduleFor(monday.add(const Duration(days: 7)))
+            .lessons
+            .single
+            .description,
+        '',
+      );
+    });
+
+    test('调课后又停课：原日与目标日都无课', () {
+      final saturday = DateTime(2026, 7, 11);
+      final svc = ScheduleService(_nativeCalendar(
+        overrides: const {
+          '2026-07-06':
+              OccurrenceOverride(excluded: true, movedToDate: '2026-07-11'),
+        },
+      ));
+      expect(svc.scheduleFor(monday).isEmpty, true);
+      expect(svc.scheduleFor(saturday).isEmpty, true);
+    });
+
     test('movedToDate 调课：原日消失、目标日出现', () {
       final saturday = DateTime(2026, 7, 11);
       final svc = ScheduleService(_nativeCalendar(
