@@ -373,7 +373,7 @@ void main() {
 
     test('无上界单周规则拆分：奇偶相位保持、上界保持无限', () {
       final original = meeting()
-          .copyWith(weeks: const WeekRule(interval: 2, offset: 0)); // 单周
+          .copyWith(weeks: const WeekRule(interval: 2, offsets: [0])); // 单周
       final edited = original.copyWith(startPeriod: 3, endPeriod: 3);
       final parts = splitMeetingFromWeek(
         original: original,

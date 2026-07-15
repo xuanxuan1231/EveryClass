@@ -12,21 +12,44 @@ void main() {
       expect(r.include, isEmpty);
     });
 
-    test('奇数周 → 单周（interval 2, offset 0）', () {
+    test('奇数周 → 单周（interval 2, offsets [0]）', () {
       final r = weekRuleFromWeeks([1, 3, 5, 7]);
       expect(r.interval, 2);
-      expect(r.offset, 0);
+      expect(r.offsets, [0]);
       expect(r.fromWeek, 1);
       expect(r.toWeek, 7);
       expect(r.include, isEmpty);
     });
 
-    test('偶数周 → 双周（interval 2, offset 1）', () {
+    test('偶数周 → 双周（interval 2, offsets [1]）', () {
       final r = weekRuleFromWeeks([2, 4, 6]);
       expect(r.interval, 2);
-      expect(r.offset, 1);
+      expect(r.offsets, [1]);
       expect(r.fromWeek, 2);
       expect(r.toWeek, 6);
+    });
+
+    test('每 3 周中的第 1 周 → 轮换规则', () {
+      final r = weekRuleFromWeeks([1, 4, 7, 10]);
+      expect(r.interval, 3);
+      expect(r.offsets, [0]);
+      expect(r.fromWeek, 1);
+      expect(r.toWeek, 10);
+      expect(r.include, isEmpty);
+    });
+
+    test('每 3 周中的第 1、2 周 → 多 offset 轮换规则', () {
+      final r = weekRuleFromWeeks([1, 2, 4, 5, 7, 8]);
+      expect(r.interval, 3);
+      expect(r.offsets, [0, 1]);
+      expect(r.fromWeek, 1);
+      expect(r.toWeek, 8);
+      expect(r.include, isEmpty);
+    });
+
+    test('不足两个完整周期不当作轮换 → include 显式列表', () {
+      final r = weekRuleFromWeeks([1, 4]);
+      expect(r.include, [1, 4]);
     });
 
     test('无规律散列 → include 显式列表', () {
@@ -60,6 +83,9 @@ void main() {
       {1, 4, 9, 16},
       {7},
       {3, 4, 5, 10, 11},
+      {1, 4, 7, 10, 13},
+      {2, 3, 6, 7, 10, 11},
+      {5, 9, 13, 17},
     ];
     for (final weeks in cases) {
       expect(
@@ -85,15 +111,15 @@ void main() {
     test('单双周', () {
       expect(
         weekRuleLabel(
-            const WeekRule(interval: 2, offset: 0, fromWeek: 1, toWeek: 15)),
+            const WeekRule(interval: 2, offsets: [0], fromWeek: 1, toWeek: 15)),
         '第 1-15 周 · 单周',
       );
       expect(
         weekRuleLabel(
-            const WeekRule(interval: 2, offset: 1, fromWeek: 2, toWeek: 16)),
+            const WeekRule(interval: 2, offsets: [1], fromWeek: 2, toWeek: 16)),
         '第 2-16 周 · 双周',
       );
-      expect(weekRuleLabel(const WeekRule(interval: 2, offset: 0)), '单周');
+      expect(weekRuleLabel(const WeekRule(interval: 2, offsets: [0])), '单周');
     });
 
     test('显式列表与多周轮换', () {
@@ -103,8 +129,26 @@ void main() {
         '第 1、4、9 周',
       );
       expect(
-        weekRuleLabel(const WeekRule(interval: 3, offset: 1)),
-        contains('每 3 周轮换'),
+        weekRuleLabel(const WeekRule(interval: 3, offsets: [1])),
+        '每 3 周中的第 2 周',
+      );
+      expect(
+        weekRuleLabel(const WeekRule(
+            interval: 3, offsets: [0, 1], fromWeek: 1, toWeek: 12)),
+        '第 1-12 周 · 每 3 周中的第 1、2 周',
+      );
+      // 周期内序数相对范围起点：从第 2 周起、相位 1（=起始周本身）→ 第 1 周。
+      expect(
+        weekRuleLabel(const WeekRule(interval: 3, offsets: [1], fromWeek: 2)),
+        '第 2 周起 · 每 3 周中的第 1 周',
+      );
+    });
+
+    test('相位覆盖整个周期视作每周', () {
+      expect(
+        weekRuleLabel(const WeekRule(
+            interval: 2, offsets: [0, 1], fromWeek: 1, toWeek: 8)),
+        '第 1-8 周',
       );
     });
   });

@@ -127,6 +127,6 @@ class ClassIslandConverter {
   static WeekRule _weekRule(ci.TimeRule rule) {
     final total = rule.weekCountDivTotal <= 0 ? 2 : rule.weekCountDivTotal;
     if (rule.weekCountDiv == 0) return WeekRule.every;
-    return WeekRule(interval: total, offset: rule.weekCountDiv - 1);
+    return WeekRule(interval: total, offsets: [rule.weekCountDiv - 1]);
   }
 }

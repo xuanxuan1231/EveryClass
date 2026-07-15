@@ -87,12 +87,23 @@ void main() {
     });
 
     test('单双周：interval=2', () {
-      const odd = WeekRule(interval: 2, offset: 0); // 单周（第1,3,5…）
-      const even = WeekRule(interval: 2, offset: 1); // 双周（第2,4,6…）
+      const odd = WeekRule(interval: 2, offsets: [0]); // 单周（第1,3,5…）
+      const even = WeekRule(interval: 2, offsets: [1]); // 双周（第2,4,6…）
       expect(odd.matches(1), true);
       expect(odd.matches(2), false);
       expect(even.matches(2), true);
       expect(even.matches(1), false);
+    });
+
+    test('多周轮换：周期内多个生效周', () {
+      // 每 3 周中的第 1、2 周上课（相位 0、1）。
+      const r = WeekRule(interval: 3, offsets: [0, 1]);
+      expect(r.matches(1), true);
+      expect(r.matches(2), true);
+      expect(r.matches(3), false);
+      expect(r.matches(4), true);
+      expect(r.matches(5), true);
+      expect(r.matches(6), false);
     });
 
     test('周次范围 + 显式周列表', () {
@@ -107,12 +118,25 @@ void main() {
     });
 
     test('JSON 往返', () {
-      const r = WeekRule(interval: 2, offset: 1, fromWeek: 2, toWeek: 16);
+      const r =
+          WeekRule(interval: 3, offsets: [1, 2], fromWeek: 2, toWeek: 16);
       final again = WeekRule.fromJson(r.toJson());
-      expect(again.interval, 2);
-      expect(again.offset, 1);
+      expect(again.interval, 3);
+      expect(again.offsets, [1, 2]);
       expect(again.fromWeek, 2);
       expect(again.toWeek, 16);
+    });
+
+    test('JSON 兼容旧版单 offset 字段', () {
+      final r = WeekRule.fromJson({
+        'interval': 2,
+        'offset': 1,
+        'range': {'from': 2, 'to': 16},
+      });
+      expect(r.interval, 2);
+      expect(r.offsets, [1]);
+      expect(r.matches(2), true);
+      expect(r.matches(3), false);
     });
   });
 

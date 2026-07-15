@@ -14,6 +14,7 @@ import 'color_swatch_row.dart';
 import 'course_icons.dart';
 import 'lesson_colors.dart';
 import 'time_fields.dart';
+import 'week_rule_picker.dart';
 
 /// 时段的时间摘要：「第 1-2 节」或自定义时刻「19:00 - 20:30」。
 String meetingTimeLabel(Meeting m) {
@@ -479,10 +480,6 @@ class _MeetingSheet extends StatefulWidget {
 }
 
 class _MeetingSheetState extends State<_MeetingSheet> {
-  /// 周次网格「增加周数」每次放大的格数，以及网格能扩到的上界（防误触无限拉长）。
-  static const int _weekGridStep = 5;
-  static const int _maxWeekGrid = 60;
-
   late int _weekday =
       widget.initial.weekday >= 1 && widget.initial.weekday <= 7
           ? widget.initial.weekday
@@ -681,91 +678,10 @@ class _MeetingSheetState extends State<_MeetingSheet> {
   }
 
   Future<void> _editWeeks() async {
-    // 学期无固定周数：网格起点取「本课表已排到的最大周」（[Calendar.weekCount]，
-    // 兜底 20），再不小于本规则已引用的周，保证已排课程完整可见。用户可按
-    // 「增加周数」把网格继续放大，突破 20 周上限（长学期的排课入口）。
-    final calWeeks = widget.calendar?.weekCount ?? Calendar.defaultWeekCount;
-    var count = weekGridCount(_weeks, defaultWeeks: calWeeks);
-    var selected = weeksOfRule(_weeks, count);
-    final result = await showDialog<WeekRule>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('选择周次'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: 6,
-                    children: [
-                      for (final (label, weeks) in [
-                        ('全选', {for (var w = 1; w <= count; w++) w}),
-                        ('单周', {for (var w = 1; w <= count; w += 2) w}),
-                        ('双周', {for (var w = 2; w <= count; w += 2) w}),
-                        ('清空', <int>{}),
-                      ])
-                        ActionChip(
-                          label: Text(label),
-                          visualDensity: VisualDensity.compact,
-                          onPressed: () =>
-                              setDialogState(() => selected = {...weeks}),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      for (var w = 1; w <= count; w++)
-                        FilterChip(
-                          label: Text('$w'),
-                          showCheckmark: false,
-                          visualDensity: VisualDensity.compact,
-                          selected: selected.contains(w),
-                          onSelected: (on) => setDialogState(() {
-                            if (on) {
-                              selected.add(w);
-                            } else {
-                              selected.remove(w);
-                            }
-                          }),
-                        ),
-                      if (count < _maxWeekGrid)
-                        ActionChip(
-                          avatar: const Icon(Icons.add, size: 18),
-                          label: const Text('增加周数'),
-                          visualDensity: VisualDensity.compact,
-                          onPressed: () => setDialogState(
-                            () => count =
-                                (count + _weekGridStep).clamp(0, _maxWeekGrid),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: selected.isEmpty
-                  ? null
-                  : () => Navigator.pop(
-                      dialogContext, weekRuleFromWeeks(selected)),
-              child: const Text('确定'),
-            ),
-          ],
-        ),
-      ),
+    final result = await showWeekRulePicker(
+      context,
+      initial: _weeks,
+      calendar: widget.calendar,
     );
     if (result != null) setState(() => _weeks = result);
   }
