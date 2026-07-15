@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:everyclass/data/classisland_importer.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -23,33 +21,17 @@ const _emptyProfileJson = '''
 ''';
 
 void main() {
-  group('ClassIslandImporter', () {
-    test('解析空课表：科目与群组正确，高级层进 extra 保留', () {
-      final profile = ClassIslandImporter.parse(_emptyProfileJson);
-      expect(profile.subjects.length, 2);
+  group('ClassIslandImporter（导入即转换为新模型）', () {
+    test('解析空课表：科目转成课程，无排课', () {
+      final db = ClassIslandImporter.parse(_emptyProfileJson);
+      final cal = db.selected!;
+      expect(cal.courses.length, 2);
       expect(
-        profile.subjects['97d0bf3f-137f-4f8a-87d6-ff387063bbd3']!.name,
+        cal.courses['97d0bf3f-137f-4f8a-87d6-ff387063bbd3']!.title,
         '语文',
       );
-      expect(
-        profile.subjects['66d1c380-d292-46e1-86d5-d403e2a4f200']!.isOutDoor,
-        true,
-      );
-      expect(profile.timeLayouts, isEmpty);
-      expect(profile.classPlanGroups.length, 1);
-      expect(
-        profile.selectedClassPlanGroupId,
-        'acaf4ef0-e261-4262-b941-34ea93cb4369',
-      );
-      // 未识别的顶层字段（如 OrderedSchedules）保留在 extra 里
-      expect(profile.extra.containsKey('OrderedSchedules'), true);
-    });
-
-    test('往返：toJson 后再解析科目与保留字段不丢', () {
-      final profile = ClassIslandImporter.parse(_emptyProfileJson);
-      final again = ClassIslandImporter.parse(jsonEncode(profile.toJson()));
-      expect(again.subjects.length, 2);
-      expect(again.extra.containsKey('OrderedSchedules'), true);
+      expect(cal.bellSchedules, isEmpty);
+      expect(cal.courses.values.every((c) => c.meetings.isEmpty), true);
     });
 
     test('非法 JSON 抛 ImportException', () {

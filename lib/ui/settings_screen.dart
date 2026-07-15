@@ -7,16 +7,20 @@ import '../data/classisland_importer.dart';
 import '../platform/file_import.dart';
 import '../platform/live_notification.dart';
 import '../util/format.dart';
+import 'schedule/calendar_edit_screen.dart';
+import 'schedule/calendars_screen.dart';
 
-/// 设置：导入档案、学期起始日、实时通知与课程提醒、按科目填教室。
+/// 设置：课表管理与导入、实时通知与课程提醒、按科目填教室。
+/// 学期开始日期在「课表管理」的课表编辑页设置。
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
-    final subjects = app.profile.subjects.entries.toList()
-      ..sort((a, b) => a.value.name.compareTo(b.value.name));
+    final cal = app.calendar;
+    final courses = (cal?.courses.values.toList() ?? [])
+      ..sort((a, b) => a.title.compareTo(b.title));
 
     return Scaffold(
       appBar: AppBar(title: const Text('设置'), centerTitle: false),
@@ -24,30 +28,26 @@ class SettingsScreen extends StatelessWidget {
         children: [
           _sectionTitle(context, '课表'),
           ListTile(
+            leading: const Icon(Icons.calendar_month_outlined),
+            title: const Text('课表管理'),
+            subtitle: Text(
+              cal == null
+                  ? '还没有课表 · 可新建或导入'
+                  : '${app.calendars.length} 张课表 · 使用中：${calendarDisplayName(cal)}',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const CalendarsScreen(),
+              ),
+            ),
+          ),
+          ListTile(
             leading: const Icon(Icons.file_download_outlined),
             title: const Text('导入 ClassIsland 档案'),
-            subtitle: Text(
-              app.hasSchedule
-                  ? '${app.profile.subjects.length} 门科目 · ${app.profile.classPlans.length} 张课表'
-                  : app.profile.subjects.isNotEmpty
-                      ? '${app.profile.subjects.length} 门科目 · 暂无课表'
-                      : '未导入',
-            ),
+            subtitle: const Text('将档案转换为一张新课表，不影响已有课表'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _showImportSheet(context, app),
-          ),
-          const Divider(height: 1),
-          _sectionTitle(context, '学期'),
-          ListTile(
-            leading: const Icon(Icons.calendar_today_outlined),
-            title: const Text('学期开始日期'),
-            subtitle: Text(
-              app.settings.termStart == null
-                  ? '未设置 · 不区分单双周'
-                  : '${ymd(app.settings.termStart!)} · 用于计算轮换周',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _pickTermStart(context, app),
           ),
           const Divider(height: 1),
           _sectionTitle(
@@ -101,26 +101,24 @@ class SettingsScreen extends StatelessWidget {
           ),
           const Divider(height: 1),
           _sectionTitle(context, '走班教室'),
-          if (subjects.isEmpty)
+          if (courses.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('导入档案后，可为每门科目填写走班教室。'),
+              child: Text('导入档案后，可为每门课程填写走班教室。'),
             )
           else
-            for (final e in subjects)
+            for (final c in courses)
               ListTile(
                 dense: true,
-                title: Text(e.value.name),
-                subtitle: e.value.teacherName.isEmpty
-                    ? null
-                    : Text(e.value.teacherName),
+                title: Text(c.title),
+                subtitle: c.teacher.isEmpty ? null : Text(c.teacher),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      e.value.defaultRoom.isEmpty ? '未填' : e.value.defaultRoom,
+                      c.defaultLocation.isEmpty ? '未填' : c.defaultLocation,
                       style: TextStyle(
-                        color: e.value.defaultRoom.isEmpty
+                        color: c.defaultLocation.isEmpty
                             ? Theme.of(context).colorScheme.outline
                             : Theme.of(context).colorScheme.primary,
                         fontWeight: FontWeight.w600,
@@ -131,7 +129,7 @@ class SettingsScreen extends StatelessWidget {
                   ],
                 ),
                 onTap: () =>
-                    _editRoom(context, app, e.key, e.value.name, e.value.defaultRoom),
+                    _editRoom(context, app, c.id, c.title, c.defaultLocation),
               ),
           const SizedBox(height: 24),
         ],
@@ -243,24 +241,14 @@ class SettingsScreen extends StatelessWidget {
     try {
       await app.importFromText(text);
       if (context.mounted) {
-        _snack(context, '导入成功：${app.profile.subjects.length} 门科目');
+        _snack(
+          context,
+          '已导入为新课表：${app.calendar?.courses.length ?? 0} 门课程',
+        );
       }
     } on ImportException catch (e) {
       if (context.mounted) _snack(context, '导入失败：${e.message}');
     }
-  }
-
-  // ---- 学期起始日 ----
-
-  Future<void> _pickTermStart(BuildContext context, AppState app) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: app.settings.termStart ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-      helpText: '选择学期第一周内任意一天',
-    );
-    if (picked != null) await app.setTermStart(picked);
   }
 
   // ---- 教室编辑 ----
@@ -268,15 +256,15 @@ class SettingsScreen extends StatelessWidget {
   Future<void> _editRoom(
     BuildContext context,
     AppState app,
-    String subjectId,
-    String subjectName,
+    String courseId,
+    String courseTitle,
     String current,
   ) async {
     final controller = TextEditingController(text: current);
     final room = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('$subjectName 的教室'),
+        title: Text('$courseTitle 的教室'),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -297,7 +285,7 @@ class SettingsScreen extends StatelessWidget {
         ],
       ),
     );
-    if (room != null) await app.setSubjectRoom(subjectId, room);
+    if (room != null) await app.setCourseRoom(courseId, room);
   }
 
   void _snack(BuildContext context, String msg) {

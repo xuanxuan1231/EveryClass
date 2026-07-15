@@ -51,3 +51,6 @@ app.*.map.json
 # Some docs i provided for AI hahahah
 xiaomi_hyperos_dev_guide.md
 profile_schema_detailed.txt
+
+# FVM Version Cache
+.fvm/

@@ -1,6 +1,6 @@
 import 'package:everyclass/app_state.dart';
-import 'package:everyclass/data/profile_repository.dart';
-import 'package:everyclass/models/profile.dart';
+import 'package:everyclass/data/database_repository.dart';
+import 'package:everyclass/models/database.dart';
 import 'package:everyclass/services/settings_service.dart';
 import 'package:everyclass/ui/settings_screen.dart';
 import 'package:flutter/material.dart';
@@ -9,28 +9,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class _MemoryProfileRepository implements ProfileRepository {
-  Profile? profile;
+class _MemoryDatabaseRepository implements DatabaseRepository {
+  Database? database;
 
-  _MemoryProfileRepository(this.profile);
-
-  @override
-  Future<void> clear() async => profile = null;
+  _MemoryDatabaseRepository(this.database);
 
   @override
-  Future<Profile?> load() async => profile;
+  Future<void> clear() async => database = null;
 
   @override
-  Future<void> save(Profile value) async => profile = value;
+  Future<Database?> load() async => database;
+
+  @override
+  Future<void> save(Database value) async => database = value;
 }
 
 Future<AppState> _createAppState() async {
   SharedPreferences.setMockInitialValues({});
   final settings = await SettingsService.create();
   return AppState(
-    _MemoryProfileRepository(Profile.empty()),
+    _MemoryDatabaseRepository(Database.empty()),
     settings,
-    Profile.empty(),
+    Database.empty(),
   );
 }
 
