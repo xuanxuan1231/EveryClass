@@ -7,6 +7,7 @@ import 'models/bell_schedule.dart';
 import 'models/calendar.dart';
 import 'models/course_event.dart';
 import 'models/database.dart';
+import 'platform/card_snapshot.dart';
 import 'platform/live_notification.dart';
 import 'services/schedule_service.dart';
 import 'services/settings_service.dart';
@@ -363,6 +364,8 @@ class AppState extends ChangeNotifier {
     } else {
       await LiveNotification.stop();
     }
+    // 顺带刷新桌面服务卡片的数据快照（仅鸿蒙生效，其它平台内部直接跳过）。
+    await CardSnapshot.export(hasSchedule ? svc : null, calendarName: calendar?.name ?? '');
   }
 
   /// 导入新课表时按 courseId（回退 title）从上一张选中课表带过已填的教室，
