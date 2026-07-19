@@ -11,6 +11,18 @@
     {
       "name": "EntryAbility_label",
       "value": "everyclass"
+    },
+    {
+      "name": "widget_display_name",
+      "value": "今日课程"
+    },
+    {
+      "name": "widget_desc",
+      "value": "在桌面查看今天的课表"
+    },
+    {
+      "name": "widget_label",
+      "value": "今日课程"
     }
   ]
 }

@@ -35,8 +35,19 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   provider: ^6.1.5+1
-  path_provider: ^2.1.5
-  shared_preferences: ^2.5.5
+  # HarmonyOS 适配：path_provider / shared_preferences 官方 pub 版本无 ohos 实现，
+  # 换用 flutter-oh 团队的鸿蒙 fork（保留 android/ios/桌面全部原实现，仅额外加 ohos）。
+  # 版本线对应 Flutter 3.35；仓库已迁移至 CPF-Flutter。
+  path_provider:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_packages.git
+      path: packages/path_provider/path_provider
+      ref: provider-v2.1.5-ohos-1.0.0
+  shared_preferences:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_packages.git
+      path: packages/shared_preferences/shared_preferences
+      ref: shared_preferences-v2.5.4-ohos-1.0.0
   intl: ^0.20.3
 
 dev_dependencies:
