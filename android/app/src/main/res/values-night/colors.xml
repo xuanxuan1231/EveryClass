@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 桌面服务卡片配色（暗色）。镜像鸿蒙 ohos/.../resources/dark/element/color.json。 -->
+<resources>
+    <color name="card_bg">#FF1C1C1E</color>
+    <color name="card_text_primary">#E5FFFFFF</color>
+    <color name="card_text_secondary">#99FFFFFF</color>
+    <color name="card_accent">#FF9FA8DA</color>
+    <color name="card_now_bg">#339FA8DA</color>
+    <color name="card_row_border">#29FFFFFF</color>
+</resources>

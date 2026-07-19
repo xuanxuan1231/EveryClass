@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'app_state.dart';
+import 'models/resolved_lesson.dart';
 import 'platform/live_notification.dart';
+import 'platform/widget_deeplink.dart';
 import 'ui/schedule/calendars_screen.dart';
 import 'ui/schedule/courses_screen.dart';
 import 'ui/schedule/day_view_screen.dart';
+import 'ui/schedule/lesson_detail_sheet.dart';
 import 'ui/schedule/week_view_screen.dart';
 import 'ui/settings_screen.dart';
+import 'util/dates.dart';
 
 const notificationDemoEnabled = bool.fromEnvironment(
   'EVERYCLASS_NOTIFICATION_DEMO',
@@ -60,7 +64,84 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
-  static const _pages = [DayViewScreen(), WeekViewScreen()];
+  // 日视图需持有 key：桌面卡片点课深链落地时，切到日视图后要命令它跳回今天。
+  final GlobalKey<DayViewScreenState> _dayViewKey =
+      GlobalKey<DayViewScreenState>();
+  late final List<Widget> _pages = [
+    DayViewScreen(key: _dayViewKey),
+    const WeekViewScreen(),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    // 应用已在前台时的点课（热启动路径）。
+    WidgetDeepLink.setListener(_handleDeepLink);
+    // 由卡片点课冷启动应用时，取出那次点课并处理（等首帧后，确保课表已就绪、
+    // Navigator 可用）。
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final pending = await WidgetDeepLink.initialLesson();
+      if (pending != null) _handleDeepLink(pending);
+    });
+  }
+
+  /// 处理桌面卡片点课深链：先卸掉压在课表之上的一切（设置、课表/课程管理、
+  /// 「编辑课程」「编辑本次」等编辑页、已打开的对话框与底部浮窗），回到主壳，
+  /// 再切到日视图今天页并唤出这节课的详情浮窗。
+  ///
+  /// 「先回主壳」是关键：应用原先若停在编辑页或其它二级页，直接弹浮窗会叠在错误
+  /// 页面之上、甚至压在正在编辑的课程表单上；popUntil 到根路由可一并收掉这些页面
+  /// 与任何开着的浮窗/对话框。编辑页未保存的改动按应用既有的「返回即丢弃」处理。
+  void _handleDeepLink(PendingLesson pending) {
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    setState(() => _index = 0);
+    // 等 IndexedStack 切换与页面构建完成后再跳今天、弹浮窗。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _dayViewKey.currentState?.jumpToToday();
+      _openLessonSheet(pending);
+    });
+  }
+
+  /// 在当天已解析课表里定位这节课并唤出详情浮窗；课程已变更/不存在则只停在今天页。
+  void _openLessonSheet(PendingLesson pending) {
+    final app = context.read<AppState>();
+    final schedule = app.schedule;
+    if (schedule == null) return;
+    final today = dateOnly(DateTime.now());
+    final lesson = _matchLesson(schedule.scheduleFor(today).lessons, pending);
+    if (lesson == null) return;
+    showLessonDetailSheet(
+      context,
+      lesson: lesson,
+      day: today,
+      course: app.calendar?.courses[lesson.subjectId],
+    );
+  }
+
+  /// 按课程 ID + 起始分钟定位；走班可能同一时刻多节，故 ID 优先，再退回时刻匹配。
+  ResolvedLesson? _matchLesson(
+    List<ResolvedLesson> lessons,
+    PendingLesson pending,
+  ) {
+    ResolvedLesson? byStart;
+    for (final l in lessons) {
+      final sameStart = l.start.inMinutes == pending.startMinute;
+      if (pending.subjectId.isNotEmpty &&
+          l.subjectId == pending.subjectId &&
+          sameStart) {
+        return l;
+      }
+      if (sameStart) byStart ??= l;
+    }
+    if (pending.subjectId.isNotEmpty) {
+      for (final l in lessons) {
+        if (l.subjectId == pending.subjectId) return l;
+      }
+    }
+    return byStart;
+  }
 
   void _openSettings() {
     Navigator.of(context).push(

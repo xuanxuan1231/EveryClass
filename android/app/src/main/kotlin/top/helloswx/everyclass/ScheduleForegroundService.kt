@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.core.app.NotificationCompat
 import org.json.JSONArray
+import top.helloswx.everyclass.widget.WidgetRefresh
 import java.util.Calendar
 
 /**
@@ -113,6 +114,8 @@ class ScheduleForegroundService : Service() {
     private var leadMs = 300 * 1000L
     // 已处理到的时刻（绝对 ms）：只补发 (watermark, now] 区间内的提醒，防止重复/补发历史。
     private var reminderWatermark = 0L
+    // 桌面卡片上次刷新的「分钟」戳：逐秒 tick 下也把卡片刷新节流到每分钟一次。
+    private var lastWidgetRefreshMinute = -1L
 
     override fun onBind(intent: Intent?) = null
 
@@ -199,6 +202,8 @@ class ScheduleForegroundService : Service() {
     }
 
     private fun afterPost(state: NState) {
+        // 前台服务本就在上课时段每分钟/每秒 tick，顺带免费驱动桌面卡片的分钟级刷新。
+        maybeRefreshWidgets()
         if (state.done) {
             stopTicking()
             // 今日结束/无课：保留这条（可清除）通知，并结束前台状态。
@@ -206,6 +211,15 @@ class ScheduleForegroundService : Service() {
             stopSelf()
         } else {
             scheduleNextTick()
+        }
+    }
+
+    /** 顺带刷新桌面服务卡片：每分钟至多一次（逐秒模式下也不过度重绘）。全程吞异常。 */
+    private fun maybeRefreshWidgets() {
+        val minute = System.currentTimeMillis() / 60_000L
+        if (minute != lastWidgetRefreshMinute) {
+            lastWidgetRefreshMinute = minute
+            runCatching { WidgetRefresh.requestUpdate(this) }
         }
     }
 

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 桌面服务卡片配色（亮色）。镜像鸿蒙 ohos/.../resources/base/element/color.json，
+     accent 与 app colorSchemeSeed(Colors.indigo) 及前台通知 ACCENT 一致。
+     暗色变体见 values-night/colors.xml。 -->
+<resources>
+    <color name="card_bg">#FFFFFFFF</color>
+    <color name="card_text_primary">#E5000000</color>
+    <color name="card_text_secondary">#99000000</color>
+    <color name="card_accent">#FF3F51B5</color>
+    <color name="card_now_bg">#143F51B5</color>
+    <color name="card_row_border">#1F000000</color>
+</resources>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 桌面小组件在系统「添加小组件」列表里的名称与说明。 -->
+    <string name="widget_today_name">今日课表</string>
+    <string name="widget_today_desc">在桌面查看今天的全部课程</string>
+    <string name="widget_live_name">实时活动</string>
+    <string name="widget_live_desc">显示当前 / 下一节课与倒计时</string>
+</resources>

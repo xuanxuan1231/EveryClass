@@ -49,6 +49,37 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="ongoing_class_schedule"/>
         </service>
+
+        <!-- 桌面服务卡片：今日课表（Glance，可缩放 2x2↔2x4） -->
+        <receiver
+            android:name=".widget.TodayScheduleReceiver"
+            android:exported="false"
+            android:label="@string/widget_today_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_info"/>
+        </receiver>
+
+        <!-- 桌面服务卡片：实时活动（Glance，可缩放 2x2↔2x4） -->
+        <receiver
+            android:name=".widget.LiveActivityReceiver"
+            android:exported="false"
+            android:label="@string/widget_live_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_live_info"/>
+        </receiver>
+
+        <!-- 卡片边界刷新闹钟接收器（仅本应用显式广播 / AlarmManager） -->
+        <receiver
+            android:name=".widget.WidgetTickReceiver"
+            android:exported="false"/>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

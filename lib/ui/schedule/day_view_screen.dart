@@ -19,15 +19,18 @@ class DayViewScreen extends StatefulWidget {
   const DayViewScreen({super.key});
 
   @override
-  State<DayViewScreen> createState() => _DayViewScreenState();
+  State<DayViewScreen> createState() => DayViewScreenState();
 }
 
-class _DayViewScreenState extends State<DayViewScreen> {
+class DayViewScreenState extends State<DayViewScreen> {
   late final PageController _pageController =
       PageController(initialPage: dayPageOf(DateTime.now()));
   DateTime _selected = dateOnly(DateTime.now());
   DateTime _now = DateTime.now();
   Timer? _timer;
+
+  /// 跳回今天（供桌面卡片点课深链落地：切到日视图后确保停在今天页）。
+  void jumpToToday() => _goTo(dateOnly(DateTime.now()));
 
   @override
   void initState() {
@@ -324,7 +327,7 @@ class _HighlightCard extends StatelessWidget {
         context,
         bg: scheme.primaryContainer,
         fg: scheme.onPrimaryContainer,
-        tag: '正在上课',
+        tag: '正在进行',
         lesson: current!,
         trailingLabel: '距下课',
         trailingValue: fmtCountdown(remaining),

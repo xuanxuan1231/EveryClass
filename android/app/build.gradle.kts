@@ -3,6 +3,8 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("kotlin-android")
+    // Jetpack Glance 桌面小组件的 @Composable 需要 Compose 编译器插件。
+    id("org.jetbrains.kotlin.plugin.compose")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -79,4 +81,6 @@ dependencies {
     // Android 16 Live Updates（提升为实时更新）所需的较新 androidx.core：
     // NotificationCompat.ProgressStyle、setRequestPromotedOngoing、setShortCriticalText。
     implementation("androidx.core:core-ktx:1.18.0")
+    // 桌面服务卡片（今日课表 / 实时活动小组件）——Jetpack Glance。
+    implementation("androidx.glance:glance-appwidget:1.1.1")
 }

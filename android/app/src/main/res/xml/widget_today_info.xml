@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 今日课表小组件：默认 2x2，可缩放到 2x4（横/纵）。initialLayout 用 Glance 库自带的
+     加载占位布局。updatePeriodMillis 为 30 分钟系统兜底刷新（更细的刷新见 WidgetRefresh）。 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:maxResizeWidth="250dp"
+    android:maxResizeHeight="300dp"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="1800000"
+    android:description="@string/widget_today_desc"
+    android:initialLayout="@layout/glance_default_loading_layout" />

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 课程行左侧色条：纯白底，运行时按课程颜色 ColorFilter.tint 着色。左侧圆角与
+     widget_now_bg 齐平（8dp）、右侧直角以紧贴内容；用 shape drawable 以兼容 minSdk 26
+     且可做每角不同圆角（Glance cornerRadius(Dp) 为统一圆角且仅 API 31+）。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFFFFFFF" />
+    <corners
+        android:topLeftRadius="8dp"
+        android:bottomLeftRadius="8dp"
+        android:topRightRadius="0dp"
+        android:bottomRightRadius="0dp" />
+</shape>

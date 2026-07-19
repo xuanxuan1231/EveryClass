@@ -11,13 +11,22 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONArray
 import org.json.JSONObject
+import top.helloswx.everyclass.widget.LessonDeepLink
+import top.helloswx.everyclass.widget.WidgetRefresh
 
 class MainActivity : FlutterActivity() {
     private val notifChannel = "everyclass/live_notification"
     private val ioChannel = "everyclass/io"
+    private val widgetChannel = "everyclass/widget"
+    private val deeplinkChannelName = "everyclass/deeplink"
     private val reqPickJson = 42
 
     private var pendingPick: MethodChannel.Result? = null
+
+    // 点课深链：冷启动时先把启动 Intent 解析暂存，等 Dart 侧 getInitialLesson 来取；
+    // 应用已在前台时（onNewIntent）则直接经通道推给 Dart。
+    private var deeplinkChannel: MethodChannel? = null
+    private var pendingLesson: Map<String, Any?>? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -142,6 +151,63 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        // Dart 侧写完 card_snapshot.json 后调用，立即重绘桌面卡片——不必等回桌面
+        // （onStop）或前台服务的分钟 tick，改动课程即时生效。
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, widgetChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "refresh" -> {
+                        runCatching { WidgetRefresh.requestUpdate(this) }
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        // 点课深链：解析启动 Intent 暂存；Dart 侧启动后调 getInitialLesson 取一次
+        // （冷启动路径）。应用已在前台时改由 onNewIntent 直接推 openLesson。
+        pendingLesson = parseLessonIntent(intent)
+        deeplinkChannel =
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, deeplinkChannelName).also { ch ->
+                ch.setMethodCallHandler { call, result ->
+                    when (call.method) {
+                        "getInitialLesson" -> {
+                            result.success(pendingLesson)
+                            pendingLesson = null
+                        }
+                        else -> result.notImplemented()
+                    }
+                }
+            }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val lesson = parseLessonIntent(intent) ?: return
+        val ch = deeplinkChannel
+        if (ch != null) {
+            ch.invokeMethod("openLesson", lesson)
+        } else {
+            // 引擎/通道尚未就绪（极少见）：暂存，等 getInitialLesson 兜底。
+            pendingLesson = lesson
+        }
+    }
+
+    /** 从 OPEN_LESSON Intent 提取课程身份；非点课深链返回 null。 */
+    private fun parseLessonIntent(intent: Intent?): Map<String, Any?>? {
+        if (intent == null || intent.action != LessonDeepLink.ACTION) return null
+        val sid = intent.getStringExtra(LessonDeepLink.EXTRA_SUBJECT_ID) ?: ""
+        val start = intent.getIntExtra(LessonDeepLink.EXTRA_START_MINUTE, -1)
+        if (sid.isEmpty() && start < 0) return null
+        return mapOf("subjectId" to sid, "startMinute" to start)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // 回到桌面时用最新快照刷新桌面服务卡片（对齐鸿蒙 EntryAbility.onBackground）。
+        runCatching { WidgetRefresh.requestUpdate(this) }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
