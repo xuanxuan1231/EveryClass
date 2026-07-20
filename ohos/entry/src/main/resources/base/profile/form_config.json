@@ -21,6 +21,28 @@
         "2*2",
         "2*4"
       ]
+    },
+    {
+      "name": "liveActivity",
+      "displayName": "$string:live_widget_display_name",
+      "description": "$string:live_widget_desc",
+      "src": "./ets/entryformability/pages/LiveActivityCard.ets",
+      "uiSyntax": "arkts",
+      "window": {
+        "designWidth": 720,
+        "autoDesignWidth": true
+      },
+      "colorMode": "auto",
+      "isDefault": false,
+      "isDynamic": true,
+      "updateEnabled": true,
+      "scheduledUpdateTime": "00:05",
+      "updateDuration": 1,
+      "defaultDimension": "2*2",
+      "supportDimensions": [
+        "2*2",
+        "2*4"
+      ]
     }
   ]
 }

@@ -23,6 +23,14 @@
     {
       "name": "widget_label",
       "value": "今日课程"
+    },
+    {
+      "name": "live_widget_display_name",
+      "value": "实时活动"
+    },
+    {
+      "name": "live_widget_desc",
+      "value": "在桌面查看正在上课与下一节"
     }
   ]
 }

@@ -23,6 +23,14 @@
     {
       "name": "widget_label",
       "value": "Today's Classes"
+    },
+    {
+      "name": "live_widget_display_name",
+      "value": "Live Class"
+    },
+    {
+      "name": "live_widget_desc",
+      "value": "See the current and next class on your home screen"
     }
   ]
 }
