@@ -237,7 +237,6 @@ jobs:
     needs:
       - metadata
       - android
-      - ios
     if: github.event_name == 'push' && github.ref_type == 'tag'
     steps:
       - name: Check out repository
